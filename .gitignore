@@ -7,6 +7,13 @@
 **/dist-ssr/
 **/build/
 
+# TypeScript-Build-Cache (von tsc -b)
+**/*.tsbuildinfo
+
+# Vite/TSC-generierter Output aus vite.config.ts
+**/vite.config.d.ts
+**/vite.config.js
+
 # Logs
 *.log
 npm-debug.log*
