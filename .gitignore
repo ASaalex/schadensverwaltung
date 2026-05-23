@@ -1,0 +1,34 @@
+# Dependencies
+**/node_modules/
+**/.pnpm-store/
+
+# Builds
+**/dist/
+**/dist-ssr/
+**/build/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment — NIEMALS committen!
+**/.env
+**/.env.local
+**/.env.*.local
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Capacitor (generiert)
+**/android/
+**/ios/
+
+# Supabase CLI
+**/.supabase/
+
+# Mockup-Artefakte
+mockup/node_modules/

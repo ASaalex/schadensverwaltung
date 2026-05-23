@@ -1,0 +1,1954 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schadensverwaltung – Mockup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .phone-frame {
+    width: 390px; height: 780px;
+    border-radius: 42px; background: #111827;
+    padding: 12px;
+    box-shadow: 0 30px 60px -15px rgba(0,0,0,0.35);
+    margin: 0 auto;
+  }
+  .phone-screen {
+    width: 100%; height: 100%;
+    border-radius: 32px; background: #f8fafc;
+    overflow: hidden; display: flex; flex-direction: column;
+    position: relative;
+  }
+  .phone-notch {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 110px; height: 28px;
+    background: #111827; border-radius: 0 0 18px 18px; z-index: 30;
+  }
+  /* Status badges */
+  .badge-neu { background: #dbeafe; color: #1e40af; }
+  .badge-geprueft { background: #e0e7ff; color: #3730a3; }
+  .badge-zugewiesen { background: #ede9fe; color: #5b21b6; }
+  .badge-bearbeitung { background: #fef3c7; color: #92400e; }
+  .badge-erledigt { background: #d1fae5; color: #065f46; }
+  .badge-abgelehnt { background: #f3f4f6; color: #4b5563; }
+  .badge-entwurf { background: #f3f4f6; color: #4b5563; }
+  .badge-versendet { background: #cffafe; color: #155e75; }
+  .badge-angenommen { background: #e0e7ff; color: #3730a3; }
+  .badge-bearbeitung { background: #fef3c7; color: #92400e; }
+  .badge-fertiggemeldet { background: #fed7aa; color: #9a3412; }
+  .badge-abgeschlossen { background: #d1fae5; color: #065f46; }
+  .prio-niedrig { background: #f1f5f9; color: #475569; }
+  .prio-normal { background: #dbeafe; color: #1e40af; }
+  .prio-hoch { background: #fed7aa; color: #9a3412; }
+  .prio-dringend { background: #fecaca; color: #991b1b; }
+  /* Map mock */
+  .map-mock {
+    background-image:
+      linear-gradient(rgba(148,163,184,0.25) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,0.25) 1px, transparent 1px),
+      linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%);
+    background-size: 40px 40px, 40px 40px, 100% 100%;
+    position: relative;
+  }
+  .map-pin {
+    position: absolute; transform: translate(-50%, -100%);
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  }
+  .role-btn { transition: all 0.15s; cursor: pointer; }
+  .role-btn.active { background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); color: #1e40af; font-weight: 600; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+  .photo-thumb {
+    background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+    display: flex; align-items: center; justify-content: center; color: #6b7280;
+  }
+  .drag-handle { cursor: grab; color: #94a3b8; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  .scroll-hidden::-webkit-scrollbar { display: none; }
+  .scroll-hidden { scrollbar-width: none; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- ====== TOP BAR ====== -->
+<header class="bg-white border-b sticky top-0 z-50 px-6 py-3 flex items-center justify-between shadow-sm">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center">
+      <i data-lucide="construction" class="text-white w-5 h-5"></i>
+    </div>
+    <div>
+      <div class="font-semibold text-slate-900">Schadensverwaltung</div>
+      <div class="text-xs text-slate-500">Klickbarer Mockup · Bauhof / Gemeinde</div>
+    </div>
+  </div>
+  <nav class="flex gap-1 bg-slate-100 rounded-lg p-1 text-sm">
+    <button onclick="goto('#/erfasser/home')" class="role-btn px-3 py-1.5 rounded-md" data-role="erfasser">📱 Erfasser-App</button>
+    <button onclick="goto('#/dispo/dashboard')" class="role-btn px-3 py-1.5 rounded-md" data-role="dispo">🖥️ Disposition</button>
+    <button onclick="goto('#/firma/orders')" class="role-btn px-3 py-1.5 rounded-md" data-role="firma">🏗️ Firmenportal</button>
+    <button onclick="goto('#/admin/users')" class="role-btn px-3 py-1.5 rounded-md" data-role="admin">⚙️ Admin</button>
+  </nav>
+</header>
+
+<main id="root" class="py-6"></main>
+
+<script>
+// ============================================================
+//  MOCK DATA
+// ============================================================
+const CATEGORIES = [
+  { id:1, name:'Straße', children:[
+    { id:10, name:'Belag', children:[
+      { id:100, name:'Schlagloch' }, { id:101, name:'Riss' }, { id:102, name:'Absackung' }]},
+    { id:11, name:'Markierung' },
+    { id:12, name:'Verkehrsschild', children:[
+      { id:120, name:'verbogen' }, { id:121, name:'verschmutzt' }, { id:122, name:'fehlt' }]},
+  ]},
+  { id:2, name:'Beleuchtung', children:[
+    { id:20, name:'Lampe defekt' }, { id:21, name:'Mast beschädigt' }]},
+  { id:3, name:'Grünflächen', children:[
+    { id:30, name:'Baum', children:[
+      { id:300, name:'umgestürzt' }, { id:301, name:'Astbruch' }]},
+    { id:31, name:'Hecke' }]},
+  { id:4, name:'Spielplatz', children:[
+    { id:40, name:'Gerät defekt' }]},
+];
+
+const DAMAGES = [
+  { id:'SCH-2026-0118', cat:'Straße › Belag › Schlagloch', adr:'Hauptstraße 12, 99084 Erfurt',
+    prio:'hoch', status:'neu', created:'21.05.2026 08:14', by:'M. Huber', x:30, y:55 },
+  { id:'SCH-2026-0119', cat:'Beleuchtung › Lampe defekt', adr:'Marktplatz 3, 99084 Erfurt',
+    prio:'normal', status:'neu', created:'21.05.2026 08:32', by:'M. Huber', x:50, y:40 },
+  { id:'SCH-2026-0120', cat:'Grünflächen › Baum › Astbruch', adr:'Stadtpark, 99084 Erfurt',
+    prio:'dringend', status:'geprueft', created:'21.05.2026 09:05', by:'A. Mayr', x:65, y:35 },
+  { id:'SCH-2026-0121', cat:'Straße › Verkehrsschild › verbogen', adr:'Industriestraße 47, 99084 Erfurt',
+    prio:'normal', status:'zugewiesen', created:'20.05.2026 14:22', by:'M. Huber', x:75, y:60 },
+  { id:'SCH-2026-0122', cat:'Straße › Belag › Schlagloch', adr:'Lindenweg 8, 99084 Erfurt',
+    prio:'normal', status:'bearbeitung', created:'19.05.2026 11:00', by:'A. Mayr', x:40, y:70 },
+  { id:'SCH-2026-0117', cat:'Spielplatz › Gerät defekt', adr:'Volksgartenstraße, 99084 Erfurt',
+    prio:'hoch', status:'erledigt', created:'18.05.2026 13:45', by:'A. Mayr', x:55, y:75 },
+];
+
+const STATUSLABEL = { neu:'Neu', geprueft:'Geprüft', zugewiesen:'Zugewiesen',
+  bearbeitung:'In Bearbeitung', erledigt:'Erledigt', abgelehnt:'Abgelehnt' };
+const PRIOLABEL = { niedrig:'Niedrig', normal:'Normal', hoch:'Hoch', dringend:'Dringend' };
+
+const ORDERS = [
+  { id:'AUF-2026-0042', title:'Schlaglöcher Nordbezirk', firma:'Bauhof intern',
+    von:'22.05.2026', bis:'22.05.2026', status:'versendet', positionen:3 },
+  { id:'AUF-2026-0041', title:'Verkehrsschilder Q2 Tausch', firma:'Müller Bau GmbH',
+    von:'19.05.2026', bis:'20.05.2026', status:'fertiggemeldet', positionen:7 },
+  { id:'AUF-2026-0040', title:'Sturmschäden Mai', firma:'Garten Schmid GbR',
+    von:'15.05.2026', bis:'16.05.2026', status:'abgeschlossen', positionen:5 },
+];
+
+// ============================================================
+//  ROUTER
+// ============================================================
+function goto(hash){ location.hash = hash; }
+
+const ROUTES = {
+  // Erfasser  (Reihenfolge: Position → Kategorie → Bemerkung+Geometrie → Fotos optional)
+  '#/erfasser/home':              renderErfasserHome,
+  '#/erfasser/new/location':      renderErfasserNewLocation,    // Schritt 1/4
+  '#/erfasser/new/category':      renderErfasserNewCategory,    // Schritt 2/4
+  '#/erfasser/new/details':       renderErfasserNewDetails,     // Schritt 3/4 (mit Geometrie)
+  '#/erfasser/new/photos':        renderErfasserNewPhotos,      // Schritt 4/4 (optional)
+  '#/erfasser/new/done':          renderErfasserNewDone,
+  '#/erfasser/list':              renderErfasserList,
+  // Dispo
+  '#/dispo/dashboard':            renderDispoDashboard,
+  '#/dispo/damages':              renderDispoDamages,
+  '#/dispo/damage/detail':        renderDispoDamageDetail,
+  '#/dispo/damage/print':         renderDispoDamagePrint,
+  '#/dispo/order/new':            renderDispoOrderNew,
+  '#/dispo/orders':               renderDispoOrders,
+  '#/dispo/order/detail':         renderDispoOrderDetail,
+  // Firma
+  '#/firma/orders':               renderFirmaOrders,
+  '#/firma/order/detail':         renderFirmaOrderDetail,
+  '#/firma/position/edit':        renderFirmaPositionEdit,
+  // Admin
+  '#/admin/users':                renderAdminUsers,
+  '#/admin/companies':            renderAdminCompanies,
+  '#/admin/categories':           renderAdminCategories,
+};
+
+function route(){
+  const hash = location.hash || '#/erfasser/home';
+  const render = ROUTES[hash] || (()=>`<p class="p-8">404 – ${hash}</p>`);
+  document.getElementById('root').innerHTML = render();
+  if (window.lucide) lucide.createIcons();
+  // active role
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('active'));
+  const role = hash.split('/')[1];
+  const map = { erfasser:'erfasser', dispo:'dispo', firma:'firma', admin:'admin' };
+  const btn = document.querySelector(`.role-btn[data-role="${map[role]}"]`);
+  if (btn) btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+window.addEventListener('hashchange', route);
+window.addEventListener('load', ()=>{ route(); });
+
+// ============================================================
+//  UI BUILDING BLOCKS
+// ============================================================
+function statusBadge(s){
+  return `<span class="badge-${s} text-xs font-medium px-2 py-0.5 rounded-full">${STATUSLABEL[s]||s}</span>`;
+}
+function prioBadge(p){
+  return `<span class="prio-${p} text-xs font-medium px-2 py-0.5 rounded-full">${PRIOLABEL[p]||p}</span>`;
+}
+function orderStatusBadge(s){
+  const lbl = { entwurf:'Entwurf', versendet:'Versendet', angenommen:'Angenommen',
+    bearbeitung:'In Bearbeitung', fertiggemeldet:'Fertiggemeldet', abgeschlossen:'Abgeschlossen' }[s] || s;
+  return `<span class="badge-${s} text-xs font-medium px-2 py-0.5 rounded-full">${lbl}</span>`;
+}
+
+function phoneWrap(inner){
+  return `
+    <div class="flex justify-center">
+      <div class="phone-frame">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          ${inner}
+        </div>
+      </div>
+    </div>`;
+}
+
+function desktopWrap(sidebarRole, inner){
+  const items = sidebarRole === 'dispo' ? [
+    { hash:'#/dispo/dashboard',   icon:'layout-dashboard', label:'Dashboard' },
+    { hash:'#/dispo/damages',     icon:'alert-triangle',   label:'Schäden' },
+    { hash:'#/dispo/orders',      icon:'clipboard-list',   label:'Aufträge' },
+    { hash:'#/dispo/order/new',   icon:'plus-circle',      label:'Neuer Auftrag' },
+  ] : sidebarRole === 'admin' ? [
+    { hash:'#/admin/users',       icon:'users',            label:'Nutzer' },
+    { hash:'#/admin/companies',   icon:'building-2',       label:'Firmen' },
+    { hash:'#/admin/categories',  icon:'list-tree',        label:'Schadenskatalog' },
+  ] : [];
+  const sidebarHtml = items.length ? `
+    <aside class="w-56 bg-slate-900 text-slate-300 min-h-[700px] py-6 px-3 rounded-l-xl">
+      <div class="text-xs uppercase tracking-wider text-slate-500 px-3 mb-3">
+        ${sidebarRole === 'dispo' ? 'Disposition' : 'Administration'}
+      </div>
+      ${items.map(it=>`
+        <a href="${it.hash}" class="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-slate-800 ${location.hash===it.hash?'bg-slate-800 text-white':''} text-sm">
+          <i data-lucide="${it.icon}" class="w-4 h-4"></i>
+          ${it.label}
+        </a>
+      `).join('')}
+      <div class="mt-6 pt-6 border-t border-slate-700 px-3 text-xs">
+        <div class="text-slate-400">Angemeldet</div>
+        <div class="text-white">Anna Berger</div>
+        <div class="text-slate-500">${sidebarRole==='dispo'?'Disponentin':'Administrator'}</div>
+      </div>
+    </aside>` : '';
+  return `
+    <div class="max-w-[1280px] mx-auto bg-white rounded-xl shadow-sm overflow-hidden flex">
+      ${sidebarHtml}
+      <div class="flex-1 min-h-[700px]">
+        ${inner}
+      </div>
+    </div>`;
+}
+
+function firmaWrap(inner){
+  return `
+    <div class="max-w-[1024px] mx-auto bg-white rounded-xl shadow-sm overflow-hidden">
+      <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-orange-500 rounded-lg flex items-center justify-center">
+            <i data-lucide="hard-hat" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <div class="font-semibold">Müller Bau GmbH</div>
+            <div class="text-xs text-slate-400">Firmenportal · Stadt Erfurt</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 text-sm">
+          <a href="#/firma/orders" class="hover:text-orange-400 ${location.hash==='#/firma/orders'?'text-orange-400':''}">Meine Aufträge</a>
+          <span class="text-slate-500">|</span>
+          <span class="text-slate-300">Josef Müller</span>
+        </div>
+      </div>
+      <div class="p-6 min-h-[700px] bg-slate-50">
+        ${inner}
+      </div>
+    </div>`;
+}
+
+// ============================================================
+//  ERFASSER-APP (Mobil-Frame)
+// ============================================================
+function renderErfasserHome(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-xs text-blue-200">Hallo, Markus</div>
+          <div class="text-xl font-semibold">Schadensverwaltung</div>
+        </div>
+        <button class="w-9 h-9 bg-blue-500/40 rounded-full flex items-center justify-center">
+          <i data-lucide="user" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="mt-4 bg-blue-700/40 rounded-lg p-3 flex items-center gap-2 text-sm">
+        <i data-lucide="wifi" class="w-4 h-4"></i>
+        Online · alles synchronisiert
+      </div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 scroll-hidden">
+      <button onclick="goto('#/erfasser/new/location')"
+        class="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-2xl py-5 px-4 shadow-lg flex items-center gap-4 mb-5 active:scale-[0.98] transition">
+        <div class="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+          <i data-lucide="map-pin" class="w-7 h-7"></i>
+        </div>
+        <div class="text-left">
+          <div class="text-lg font-semibold">Neuer Schaden</div>
+          <div class="text-sm text-orange-100">Position · Kategorie · Bemerkung · Fotos</div>
+        </div>
+      </button>
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-medium text-slate-700">Meine letzten Erfassungen</div>
+        <button onclick="goto('#/erfasser/list')" class="text-xs text-blue-600">Alle ansehen</button>
+      </div>
+      ${DAMAGES.filter(d=>d.by==='M. Huber').slice(0,4).map(d=>`
+        <div class="bg-white rounded-xl p-3 mb-2 flex items-center gap-3 shadow-sm">
+          <div class="w-12 h-12 photo-thumb rounded-lg">
+            <i data-lucide="image" class="w-5 h-5"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-900 truncate">${d.cat}</div>
+            <div class="text-xs text-slate-500 truncate">${d.adr}</div>
+            <div class="flex gap-1.5 mt-1">${statusBadge(d.status)} ${prioBadge(d.prio)}</div>
+          </div>
+          <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
+        </div>
+      `).join('')}
+    </div>
+    <nav class="bg-white border-t flex justify-around py-2">
+      <button class="flex flex-col items-center gap-0.5 text-blue-600">
+        <i data-lucide="home" class="w-5 h-5"></i><span class="text-xs">Start</span>
+      </button>
+      <button onclick="goto('#/erfasser/list')" class="flex flex-col items-center gap-0.5 text-slate-500">
+        <i data-lucide="list" class="w-5 h-5"></i><span class="text-xs">Liste</span>
+      </button>
+      <button class="flex flex-col items-center gap-0.5 text-slate-500">
+        <i data-lucide="map" class="w-5 h-5"></i><span class="text-xs">Karte</span>
+      </button>
+      <button class="flex flex-col items-center gap-0.5 text-slate-500">
+        <i data-lucide="settings" class="w-5 h-5"></i><span class="text-xs">Einstellungen</span>
+      </button>
+    </nav>
+  `);
+}
+
+function renderErfasserNewPhotos(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white flex items-center gap-3">
+      <button onclick="goto('#/erfasser/new/details')" class="w-8 h-8 flex items-center justify-center">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+      </button>
+      <div class="text-base font-medium flex-1">Fotos · Schritt 4/4 <span class="text-blue-200 text-xs font-normal">(optional)</span></div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 bg-white scroll-hidden">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-xs text-slate-500">Bilder helfen der Disposition. Dieser Schritt kann übersprungen werden.</div>
+        <div class="text-xs font-medium text-slate-700">2 / 5</div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="aspect-square photo-thumb rounded-lg relative">
+          <i data-lucide="image" class="w-6 h-6"></i>
+          <button class="absolute top-1 right-1 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center">
+            <i data-lucide="x" class="w-3 h-3 text-red-600"></i>
+          </button>
+        </div>
+        <div class="aspect-square photo-thumb rounded-lg relative">
+          <i data-lucide="image" class="w-6 h-6"></i>
+          <button class="absolute top-1 right-1 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center">
+            <i data-lucide="x" class="w-3 h-3 text-red-600"></i>
+          </button>
+        </div>
+        <button class="aspect-square border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-400">
+          <i data-lucide="plus" class="w-6 h-6"></i>
+          <span class="text-xs mt-1">Weiteres</span>
+        </button>
+      </div>
+
+      <button class="w-full bg-slate-900 text-white py-3 rounded-xl flex items-center justify-center gap-2 mb-2">
+        <i data-lucide="camera" class="w-5 h-5"></i> Foto aufnehmen
+      </button>
+      <button class="w-full bg-slate-100 text-slate-700 py-3 rounded-xl flex items-center justify-center gap-2">
+        <i data-lucide="image" class="w-5 h-5"></i> Aus Galerie wählen
+      </button>
+
+      <div class="mt-4 text-xs text-slate-500 flex items-start gap-2 bg-blue-50 p-3 rounded-lg">
+        <i data-lucide="info" class="w-4 h-4 text-blue-600 mt-0.5"></i>
+        <span>Wenn offline: Schaden wird lokal gespeichert und automatisch synchronisiert, sobald wieder Empfang da ist.</span>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-white border-t flex items-center gap-2">
+      <button onclick="goto('#/erfasser/new/done')" class="flex-1 bg-slate-100 text-slate-700 px-3 py-2 rounded-lg text-sm font-medium">
+        Ohne Fotos speichern
+      </button>
+      <button onclick="goto('#/erfasser/new/done')" class="flex-1 bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2">
+        <i data-lucide="check" class="w-4 h-4"></i> Speichern
+      </button>
+    </div>
+  `);
+}
+
+function renderErfasserNewLocation(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white flex items-center gap-3">
+      <button onclick="goto('#/erfasser/home')" class="w-8 h-8 flex items-center justify-center">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+      <div class="text-base font-medium flex-1">Position · Schritt 1/4</div>
+    </div>
+    <div class="map-mock h-72 relative">
+      <div class="map-pin" style="left:50%;top:50%">
+        <i data-lucide="map-pin" class="w-10 h-10 text-red-600 fill-red-600"></i>
+      </div>
+      <div class="absolute bottom-2 right-2 bg-white/90 text-xs px-2 py-1 rounded">© OpenStreetMap</div>
+    </div>
+    <div class="flex-1 px-5 py-4 bg-white">
+      <div class="flex items-center gap-2 text-emerald-600 text-sm mb-3">
+        <i data-lucide="check-circle" class="w-4 h-4"></i>
+        GPS empfangen · Genauigkeit ±4 m
+      </div>
+      <div class="text-xs text-slate-500 mb-1">Automatisch aufgelöste Adresse</div>
+      <div class="bg-slate-50 rounded-lg p-3 mb-3">
+        <div class="font-medium text-slate-900">Hauptstraße 12</div>
+        <div class="text-sm text-slate-600">99084 Erfurt</div>
+        <div class="text-xs text-slate-400 mt-1">48.30543, 14.28612</div>
+      </div>
+      <button class="text-sm text-blue-600 flex items-center gap-1">
+        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+        Adresse manuell korrigieren
+      </button>
+    </div>
+    <div class="px-5 py-3 bg-white border-t flex justify-end">
+      <button onclick="goto('#/erfasser/new/category')"
+        class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+        Weiter <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+  `);
+}
+
+function renderErfasserNewCategory(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white flex items-center gap-3">
+      <button onclick="goto('#/erfasser/new/location')" class="w-8 h-8 flex items-center justify-center">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+      </button>
+      <div class="text-base font-medium flex-1">Kategorie · Schritt 2/4</div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 bg-white scroll-hidden">
+      <div class="text-xs text-slate-500 mb-2">Auswahl: <span class="font-medium text-slate-700">Straße › Belag › ?</span></div>
+      <div class="mb-4">
+        <div class="text-xs uppercase text-slate-400 tracking-wider mb-2">Zuletzt verwendet</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="goto('#/erfasser/new/details')" class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-left">
+            <div class="text-sm font-medium text-slate-900">Schlagloch</div>
+            <div class="text-xs text-slate-500">Straße › Belag</div>
+          </button>
+          <button class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-left">
+            <div class="text-sm font-medium text-slate-900">Lampe defekt</div>
+            <div class="text-xs text-slate-500">Beleuchtung</div>
+          </button>
+        </div>
+      </div>
+      <div class="text-xs uppercase text-slate-400 tracking-wider mb-2">Vollständiger Katalog</div>
+      <div class="space-y-1">
+        <div class="bg-slate-50 rounded-lg overflow-hidden">
+          <div class="px-3 py-2.5 flex items-center justify-between bg-slate-100">
+            <div class="flex items-center gap-2"><i data-lucide="chevron-down" class="w-4 h-4 text-slate-500"></i><span class="font-medium text-sm">Straße</span></div>
+          </div>
+          <div class="ml-7 mr-3 my-1 space-y-0.5">
+            <div class="px-3 py-2 bg-blue-50 rounded text-sm font-medium text-blue-900 flex items-center justify-between">
+              Belag <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+            </div>
+            <div class="ml-4 space-y-0.5">
+              <button onclick="goto('#/erfasser/new/details')" class="w-full text-left px-3 py-2 hover:bg-blue-100 rounded text-sm bg-blue-100 text-blue-900 font-medium flex items-center justify-between">
+                Schlagloch <i data-lucide="check" class="w-4 h-4"></i>
+              </button>
+              <button class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm">Riss</button>
+              <button class="w-full text-left px-3 py-2 hover:bg-slate-100 rounded text-sm">Absackung</button>
+            </div>
+            <div class="px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center justify-between">
+              Markierung <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+            </div>
+            <div class="px-3 py-2 hover:bg-slate-100 rounded text-sm flex items-center justify-between">
+              Verkehrsschild <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400"></i>
+            </div>
+          </div>
+        </div>
+        <div class="px-3 py-2.5 bg-slate-50 rounded-lg flex items-center justify-between">
+          <span class="text-sm">Beleuchtung</span>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+        </div>
+        <div class="px-3 py-2.5 bg-slate-50 rounded-lg flex items-center justify-between">
+          <span class="text-sm">Grünflächen</span>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+        </div>
+        <div class="px-3 py-2.5 bg-slate-50 rounded-lg flex items-center justify-between">
+          <span class="text-sm">Spielplatz</span>
+          <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-white border-t flex justify-end">
+      <button onclick="goto('#/erfasser/new/details')" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+        Weiter <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+  `);
+}
+
+function renderErfasserNewDetails(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white flex items-center gap-3">
+      <button onclick="goto('#/erfasser/new/category')" class="w-8 h-8 flex items-center justify-center">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+      </button>
+      <div class="text-base font-medium flex-1">Details · Schritt 3/4</div>
+    </div>
+    <div class="flex-1 overflow-y-auto bg-white scroll-hidden">
+      <div class="bg-slate-50 px-5 py-3 text-xs space-y-1 border-b">
+        <div class="flex justify-between"><span class="text-slate-500">Kategorie</span><span class="font-medium">Grünflächen › Sturmschaden</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Position</span><span class="font-medium">Stadtpark, 99084 Erfurt</span></div>
+        <div class="flex justify-between"><span class="text-slate-500">Geometrie</span><span class="font-medium text-orange-600">Fläche · zeichnen erforderlich</span></div>
+      </div>
+
+      <!-- Geometrie zeichnen -->
+      <div class="px-5 pt-4">
+        <label class="text-sm font-medium text-slate-700 block mb-2 flex items-center gap-2">
+          <i data-lucide="shapes" class="w-4 h-4 text-orange-600"></i>
+          Fläche auf Karte zeichnen
+        </label>
+        <div class="map-mock h-44 rounded-lg relative overflow-hidden border border-slate-200">
+          <svg class="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+            <polygon points="80,40 220,30 290,90 250,160 110,150 60,100"
+              fill="rgba(249,115,22,0.25)" stroke="#ea580c" stroke-width="2" stroke-dasharray="0"/>
+            <circle cx="80" cy="40" r="5" fill="#ea580c"/>
+            <circle cx="220" cy="30" r="5" fill="#ea580c"/>
+            <circle cx="290" cy="90" r="5" fill="#ea580c"/>
+            <circle cx="250" cy="160" r="5" fill="#ea580c"/>
+            <circle cx="110" cy="150" r="5" fill="#ea580c"/>
+            <circle cx="60" cy="100" r="5" fill="#ea580c"/>
+          </svg>
+          <div class="absolute top-2 left-2 bg-white/90 text-xs px-2 py-1 rounded shadow">
+            ≈ 240 m² · 6 Punkte
+          </div>
+          <div class="absolute bottom-2 right-2 flex gap-1">
+            <button class="w-8 h-8 bg-white rounded shadow flex items-center justify-center"><i data-lucide="undo-2" class="w-4 h-4"></i></button>
+            <button class="w-8 h-8 bg-white rounded shadow flex items-center justify-center"><i data-lucide="trash-2" class="w-4 h-4 text-red-600"></i></button>
+          </div>
+        </div>
+        <div class="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+          <i data-lucide="info" class="w-3.5 h-3.5"></i>
+          Tippe nacheinander die Eckpunkte. Doppelt-tippen schließt die Fläche.
+        </div>
+      </div>
+
+      <!-- Kategorie-Eigenschaften (Custom Fields) -->
+      <div class="px-5 pt-4">
+        <label class="text-sm font-medium text-slate-700 block mb-2 flex items-center gap-2">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-600"></i>
+          Eigenschaften
+          <span class="text-xs text-slate-400 font-normal">(aus Kategorie)</span>
+        </label>
+        <div class="space-y-2.5">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Aufräumbedarf</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button class="py-1.5 text-xs rounded-md bg-slate-100 text-slate-600">gering</button>
+              <button class="py-1.5 text-xs rounded-md bg-blue-600 text-white font-medium">mittel</button>
+              <button class="py-1.5 text-xs rounded-md bg-slate-100 text-slate-600">hoch</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Anzahl Bäume betroffen</label>
+            <input type="number" value="3" class="w-full border border-slate-200 rounded-lg p-2 text-sm">
+          </div>
+          <div class="flex items-center gap-2 py-1">
+            <input type="checkbox" id="cf-safety" class="w-4 h-4" checked>
+            <label for="cf-safety" class="text-sm">Sicherheitsrelevant (Absperrung erforderlich)</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Priorität -->
+      <div class="px-5 pt-4">
+        <label class="text-sm font-medium text-slate-700 block mb-2">Priorität</label>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button class="py-2 text-xs rounded-md bg-slate-100 text-slate-600">Niedrig</button>
+          <button class="py-2 text-xs rounded-md bg-slate-100 text-slate-600">Normal</button>
+          <button class="py-2 text-xs rounded-md bg-orange-500 text-white font-medium">Hoch</button>
+          <button class="py-2 text-xs rounded-md bg-slate-100 text-slate-600">Dringend</button>
+        </div>
+      </div>
+
+      <!-- Bemerkung -->
+      <div class="px-5 pt-4 pb-4">
+        <label class="text-sm font-medium text-slate-700 block mb-2">Bemerkung <span class="text-slate-400 font-normal">(optional)</span></label>
+        <textarea class="w-full border border-slate-200 rounded-lg p-3 text-sm" rows="3" placeholder="Größere Äste querfeldein durch Sturm gestern Nacht ..."></textarea>
+        <button class="text-xs text-blue-600 flex items-center gap-1 mt-1">
+          <i data-lucide="mic" class="w-3.5 h-3.5"></i> Diktieren
+        </button>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-white border-t flex justify-between items-center">
+      <span class="text-xs text-slate-500">Nächster Schritt: Fotos (optional)</span>
+      <button onclick="goto('#/erfasser/new/photos')" class="bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+        Weiter <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </div>
+  `);
+}
+
+function renderErfasserNewDone(){
+  return phoneWrap(`
+    <div class="flex-1 flex flex-col items-center justify-center px-8 text-center bg-white">
+      <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
+        <i data-lucide="check" class="w-10 h-10 text-emerald-600"></i>
+      </div>
+      <div class="text-xl font-semibold text-slate-900 mb-1">Schaden erfasst</div>
+      <div class="text-sm text-slate-500 mb-1">SCH-2026-0123</div>
+      <div class="text-sm text-slate-600 mb-6">An die Disposition übermittelt.</div>
+      <div class="w-full space-y-2">
+        <button onclick="goto('#/erfasser/new/photo')" class="w-full bg-orange-500 text-white py-3 rounded-lg font-medium flex items-center justify-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Nächsten Schaden erfassen
+        </button>
+        <button onclick="goto('#/erfasser/home')" class="w-full bg-slate-100 text-slate-700 py-3 rounded-lg font-medium">
+          Zurück zur Startseite
+        </button>
+      </div>
+    </div>
+  `);
+}
+
+function renderErfasserList(){
+  return phoneWrap(`
+    <div class="pt-10 pb-3 px-5 bg-blue-600 text-white flex items-center gap-3">
+      <button onclick="goto('#/erfasser/home')" class="w-8 h-8 flex items-center justify-center">
+        <i data-lucide="arrow-left" class="w-5 h-5"></i>
+      </button>
+      <div class="text-base font-medium flex-1">Meine Erfassungen</div>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-4 scroll-hidden">
+      <div class="flex gap-2 mb-3 text-xs">
+        <span class="bg-blue-600 text-white px-3 py-1 rounded-full">Alle</span>
+        <span class="bg-white text-slate-600 px-3 py-1 rounded-full border">Offen</span>
+        <span class="bg-white text-slate-600 px-3 py-1 rounded-full border">Erledigt</span>
+      </div>
+      ${DAMAGES.filter(d=>d.by==='M. Huber').map(d=>`
+        <div class="bg-white rounded-xl p-3 mb-2 shadow-sm">
+          <div class="flex items-start gap-3">
+            <div class="w-14 h-14 photo-thumb rounded-lg"><i data-lucide="image" class="w-5 h-5"></i></div>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-slate-400 mb-0.5">${d.id} · ${d.created}</div>
+              <div class="text-sm font-medium text-slate-900">${d.cat}</div>
+              <div class="text-xs text-slate-500 truncate">${d.adr}</div>
+              <div class="flex gap-1.5 mt-1.5">${statusBadge(d.status)} ${prioBadge(d.prio)}</div>
+            </div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `);
+}
+
+// ============================================================
+//  DISPOSITION (Desktop)
+// ============================================================
+function renderDispoDashboard(){
+  return desktopWrap('dispo', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Dashboard</h1>
+          <p class="text-sm text-slate-500">Stand: 21.05.2026 · 14:32</p>
+        </div>
+        <button onclick="goto('#/dispo/order/new')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Neuer Auftrag
+        </button>
+      </div>
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        ${[
+          {l:'Offene Schäden', v:'42', icon:'alert-triangle', col:'blue', sub:'+3 heute'},
+          {l:'Heute fällig', v:'7', icon:'calendar-clock', col:'amber', sub:'2 dringend'},
+          {l:'Überfällig', v:'2', icon:'alarm-clock', col:'red', sub:'sofort prüfen'},
+          {l:'Aufträge in Bearbeitung', v:'5', icon:'clipboard-list', col:'emerald', sub:'3 Firmen aktiv'},
+        ].map(k=>`
+          <div class="bg-white border rounded-xl p-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm text-slate-500">${k.l}</span>
+              <i data-lucide="${k.icon}" class="w-4 h-4 text-${k.col}-500"></i>
+            </div>
+            <div class="text-2xl font-semibold text-slate-900">${k.v}</div>
+            <div class="text-xs text-slate-500 mt-1">${k.sub}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 bg-white border rounded-xl overflow-hidden">
+          <div class="p-4 border-b flex items-center justify-between">
+            <div class="font-medium">Schadens-Karte</div>
+            <div class="flex gap-2 text-xs">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Neu</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-violet-500"></span> Zugewiesen</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> In Bearbeitung</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Erledigt</span>
+            </div>
+          </div>
+          <div class="map-mock h-80 relative">
+            ${DAMAGES.map(d=>{
+              const col = {neu:'#3b82f6',geprueft:'#6366f1',zugewiesen:'#8b5cf6',bearbeitung:'#f59e0b',erledigt:'#10b981'}[d.status]||'#94a3b8';
+              return `<div class="map-pin" style="left:${d.x}%;top:${d.y}%">
+                <svg width="22" height="28" viewBox="0 0 22 28"><path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="${col}"/><circle cx="11" cy="11" r="4" fill="white"/></svg>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div class="bg-white border rounded-xl">
+          <div class="p-4 border-b font-medium">Letzte Aktivitäten</div>
+          <div class="divide-y text-sm">
+            ${[
+              ['Müller Bau hat Position erledigt', 'Verkehrsschild Industriestr. 47', '14:18', 'check-circle', 'text-emerald-600'],
+              ['Neuer Schaden erfasst', 'A. Mayr · Stadtpark', '09:05', 'plus', 'text-blue-600'],
+              ['Auftrag versendet', 'AUF-2026-0042 · Bauhof intern', '08:50', 'send', 'text-violet-600'],
+              ['Garten Schmid hat Auftrag abgeschlossen', 'AUF-2026-0040', 'gestern', 'check-check', 'text-emerald-600'],
+              ['Schaden geprüft', 'SCH-2026-0120 · A. Mayr', 'gestern', 'eye', 'text-indigo-600'],
+            ].map(a=>`
+              <div class="p-3 flex gap-3">
+                <i data-lucide="${a[3]}" class="w-4 h-4 ${a[4]} mt-0.5 flex-shrink-0"></i>
+                <div class="flex-1 min-w-0">
+                  <div class="text-slate-900">${a[0]}</div>
+                  <div class="text-xs text-slate-500">${a[1]}</div>
+                </div>
+                <div class="text-xs text-slate-400">${a[2]}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function renderDispoDamages(){
+  // Sort indicator helper
+  const sortIcon = (active, dir='desc') => active
+    ? `<i data-lucide="${dir==='desc'?'chevron-down':'chevron-up'}" class="w-3 h-3 inline text-blue-600"></i>`
+    : `<i data-lucide="chevrons-up-down" class="w-3 h-3 inline text-slate-300"></i>`;
+  return desktopWrap('dispo', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Schäden</h1>
+          <p class="text-sm text-slate-500">${DAMAGES.length} Einträge · 2 ausgewählt · Filter: <span class="text-blue-600">letzte 7 Tage</span></p>
+        </div>
+        <div class="flex gap-2">
+          <button class="border border-slate-200 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 bg-white">
+            <i data-lucide="upload" class="w-4 h-4"></i> CSV-Import
+          </button>
+          <div class="relative">
+            <button class="border border-slate-200 px-3 py-2 rounded-lg text-sm flex items-center gap-1.5 bg-white">
+              <i data-lucide="download" class="w-4 h-4"></i> Export
+              <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+            </button>
+            <div class="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg py-1 w-48 z-10 text-sm">
+              <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-600"></i> Excel (.xlsx)</button>
+              <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-slate-600"></i> CSV</button>
+              <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"><i data-lucide="file" class="w-4 h-4 text-red-600"></i> PDF (Liste)</button>
+              <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"><i data-lucide="files" class="w-4 h-4 text-red-600"></i> PDF (Mappe je Schaden)</button>
+              <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 flex items-center gap-2"><i data-lucide="map" class="w-4 h-4 text-blue-600"></i> GeoJSON</button>
+            </div>
+          </div>
+          <button onclick="goto('#/dispo/order/new')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5">
+            <i data-lucide="package-plus" class="w-4 h-4"></i> 2 Schäden zu Auftrag bündeln
+          </button>
+        </div>
+      </div>
+
+      <!-- Filterbar -->
+      <div class="bg-white border rounded-xl p-3 mb-3">
+        <div class="flex flex-wrap gap-3 items-end">
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Zeitraum (Aufnahmedatum)</label>
+            <div class="flex gap-1.5 items-center">
+              <input type="date" value="2026-05-14" class="border rounded-lg px-2 py-1.5 text-sm">
+              <span class="text-slate-400">–</span>
+              <input type="date" value="2026-05-21" class="border rounded-lg px-2 py-1.5 text-sm">
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Quick</label>
+            <div class="flex gap-1">
+              <button class="border rounded-md px-2 py-1.5 text-xs">Heute</button>
+              <button class="bg-blue-600 text-white rounded-md px-2 py-1.5 text-xs font-medium">7 Tage</button>
+              <button class="border rounded-md px-2 py-1.5 text-xs">30 Tage</button>
+              <button class="border rounded-md px-2 py-1.5 text-xs">Quartal</button>
+            </div>
+          </div>
+          <div class="min-w-[200px]">
+            <label class="text-xs text-slate-500 block mb-1">Schadensart</label>
+            <div class="border rounded-lg px-2 py-1.5 text-sm bg-white flex items-center gap-1 flex-wrap min-h-[34px]">
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">Straße › Belag <i data-lucide="x" class="w-3 h-3"></i></span>
+              <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded flex items-center gap-1">Beleuchtung <i data-lucide="x" class="w-3 h-3"></i></span>
+              <span class="text-slate-400 text-xs">+ hinzufügen</span>
+            </div>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Status</label>
+            <select class="border rounded-lg px-2 py-1.5 text-sm">
+              <option>Alle</option><option>Neu, Geprüft</option><option>In Bearbeitung</option><option>Erledigt</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Priorität</label>
+            <select class="border rounded-lg px-2 py-1.5 text-sm">
+              <option>Alle</option><option>Hoch, Dringend</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-slate-500 block mb-1">Erfasser</label>
+            <select class="border rounded-lg px-2 py-1.5 text-sm">
+              <option>Alle (3)</option>
+            </select>
+          </div>
+          <div class="flex-1 min-w-[160px]">
+            <label class="text-xs text-slate-500 block mb-1">Volltextsuche</label>
+            <div class="relative">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2.5"></i>
+              <input class="w-full border rounded-lg pl-7 pr-2 py-1.5 text-sm" placeholder="ID, Bemerkung, Adresse ...">
+            </div>
+          </div>
+          <button class="border rounded-lg px-3 py-1.5 text-sm flex items-center gap-1.5">
+            <i data-lucide="bookmark" class="w-3.5 h-3.5"></i> Ansicht speichern
+          </button>
+          <button class="text-xs text-slate-500 underline pb-1.5">Filter zurücksetzen</button>
+        </div>
+      </div>
+
+      <!-- Schnell-Filter Status -->
+      <div class="flex gap-2 mb-3 text-xs">
+        ${['Alle (42)','Neu (3)','Geprüft (8)','Zugewiesen (12)','In Bearbeitung (16)','Erledigt (heute) (3)'].map((t,i)=>`
+          <span class="${i===0?'bg-blue-600 text-white':'bg-white border text-slate-600'} px-3 py-1.5 rounded-full cursor-pointer">${t}</span>
+        `).join('')}
+      </div>
+
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 bg-white border rounded-xl overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+              <tr>
+                <th class="px-3 py-2 text-left w-8"><input type="checkbox" checked></th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">ID ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-left cursor-pointer text-blue-600">Aufnahmedatum ${sortIcon(true,'desc')}</th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">Kategorie ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">Adresse ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">Erfasser ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">Prio ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-left cursor-pointer hover:text-slate-800">Status ${sortIcon(false)}</th>
+                <th class="px-3 py-2 text-center w-8"><button class="text-slate-400 hover:text-slate-700"><i data-lucide="settings-2" class="w-3.5 h-3.5"></i></button></th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              ${DAMAGES.map((d,i)=>`
+                <tr onclick="goto('#/dispo/damage/detail')" class="hover:bg-slate-50 cursor-pointer ${i<2?'bg-blue-50/40':''}">
+                  <td class="px-3 py-2.5"><input type="checkbox" ${i<2?'checked':''}></td>
+                  <td class="px-3 py-2.5 font-mono text-xs text-slate-500">${d.id}</td>
+                  <td class="px-3 py-2.5 text-xs text-slate-600">${d.created}</td>
+                  <td class="px-3 py-2.5">${d.cat}</td>
+                  <td class="px-3 py-2.5 text-slate-600">${d.adr}</td>
+                  <td class="px-3 py-2.5 text-slate-600 text-xs">${d.by}</td>
+                  <td class="px-3 py-2.5">${prioBadge(d.prio)}</td>
+                  <td class="px-3 py-2.5">${statusBadge(d.status)}</td>
+                  <td></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="px-3 py-2 border-t bg-slate-50 text-xs text-slate-500 flex justify-between items-center">
+            <span>${DAMAGES.length} von 42 angezeigt</span>
+            <div class="flex gap-1 items-center">
+              <button class="px-2 py-1 border rounded">‹</button>
+              <span>1 / 7</span>
+              <button class="px-2 py-1 border rounded">›</button>
+            </div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-xl overflow-hidden">
+          <div class="px-3 py-2 border-b text-xs text-slate-500 flex items-center justify-between">
+            <span>Karte synchron zur Liste</span>
+            <span class="text-blue-600">2 Pins ausgewählt</span>
+          </div>
+          <div class="map-mock h-[440px] relative">
+            <!-- Zoom controls -->
+            <div class="absolute top-2 left-2 z-10 flex flex-col bg-white rounded shadow overflow-hidden">
+              <button class="w-8 h-8 hover:bg-slate-100 border-b"><i data-lucide="plus" class="w-4 h-4 mx-auto"></i></button>
+              <button class="w-8 h-8 hover:bg-slate-100"><i data-lucide="minus" class="w-4 h-4 mx-auto"></i></button>
+            </div>
+            <!-- Lasso/select tool -->
+            <div class="absolute top-2 right-2 z-10 flex flex-col bg-white rounded shadow overflow-hidden">
+              <button class="w-8 h-8 hover:bg-slate-100 border-b bg-blue-50 text-blue-600" title="Lasso-Auswahl"><i data-lucide="lasso" class="w-4 h-4 mx-auto"></i></button>
+              <button class="w-8 h-8 hover:bg-slate-100" title="Rechteck-Auswahl"><i data-lucide="square-dashed" class="w-4 h-4 mx-auto"></i></button>
+            </div>
+            <!-- Layer-Switcher (Thüringen-Setup) -->
+            <div class="absolute top-12 right-2 z-10 bg-white rounded shadow overflow-hidden text-xs">
+              <div class="px-2 py-1 bg-slate-50 border-b text-slate-500 font-medium">Karte</div>
+              <button class="block w-full text-left px-3 py-1.5 hover:bg-slate-50 bg-blue-50 text-blue-700 font-medium">● OSM</button>
+              <button class="block w-full text-left px-3 py-1.5 hover:bg-slate-50">○ Luftbild TH</button>
+              <button class="block w-full text-left px-3 py-1.5 hover:bg-slate-50">○ ALKIS-Kataster</button>
+            </div>
+            <!-- Cluster example -->
+            <div class="map-pin" style="left:20%;top:25%">
+              <div class="w-9 h-9 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold border-2 border-white shadow">8</div>
+            </div>
+            ${DAMAGES.map((d,i)=>{
+              const col = {neu:'#3b82f6',geprueft:'#6366f1',zugewiesen:'#8b5cf6',bearbeitung:'#f59e0b',erledigt:'#10b981'}[d.status]||'#94a3b8';
+              const sel = i<2;
+              return `<div class="map-pin" style="left:${d.x}%;top:${d.y}%">
+                <svg width="${sel?28:22}" height="${sel?34:28}" viewBox="0 0 22 28">
+                  <path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="${col}" stroke="${sel?'#1d4ed8':'none'}" stroke-width="2"/>
+                  <circle cx="11" cy="11" r="4" fill="white"/>
+                </svg>
+              </div>`;
+            }).join('')}
+            <!-- Example drawn polygon (flächiger Schaden) -->
+            <svg class="absolute inset-0 w-full h-full" style="pointer-events:none">
+              <polygon points="65%,30% 78%,32% 80%,45% 62%,42%" fill="rgba(139,92,246,0.25)" stroke="#8b5cf6" stroke-width="2"/>
+            </svg>
+            <!-- Lasso example -->
+            <svg class="absolute inset-0 w-full h-full" style="pointer-events:none">
+              <path d="M 60 220 Q 120 200 180 230 Q 200 280 150 310 Q 80 320 50 280 Z" fill="rgba(59,130,246,0.10)" stroke="#3b82f6" stroke-width="2" stroke-dasharray="6 4"/>
+            </svg>
+            <div class="absolute bottom-2 left-2 bg-white/90 text-xs px-2 py-1 rounded shadow">Zoom 13 · OpenStreetMap</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function renderDispoDamageDetail(){
+  return desktopWrap('dispo', `
+    <div class="p-6 max-w-5xl">
+      <button onclick="goto('#/dispo/damages')" class="text-sm text-slate-500 flex items-center gap-1 mb-3">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück zur Liste
+      </button>
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <div class="text-xs text-slate-500 mb-1">SCH-2026-0118</div>
+          <h1 class="text-2xl font-semibold text-slate-900">Schlagloch · Hauptstraße 12</h1>
+          <div class="flex gap-2 mt-2">${statusBadge('neu')} ${prioBadge('hoch')}</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="goto('#/dispo/damage/print')" class="border px-3 py-2 rounded-lg text-sm flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-4 h-4"></i> Drucken
+          </button>
+          <button class="border px-3 py-2 rounded-lg text-sm">Status ändern</button>
+          <button class="border px-3 py-2 rounded-lg text-sm text-red-600 border-red-200">Ablehnen</button>
+          <button class="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm">In Auftrag bündeln</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-6">
+        <div class="col-span-2 space-y-4">
+          <!-- Fotos -->
+          <div class="bg-white border rounded-xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-medium flex items-center gap-2">
+                Fotos
+                <span class="text-xs font-normal text-slate-500">vor 2/5 · nach 0/5 · detail 1/5</span>
+              </div>
+              <button class="text-sm text-blue-600 flex items-center gap-1">
+                <i data-lucide="upload" class="w-4 h-4"></i> Detail-Foto hinzufügen
+              </button>
+            </div>
+            <div class="grid grid-cols-4 gap-2">
+              <div class="photo-thumb aspect-square rounded-lg relative">
+                <i data-lucide="image" class="w-6 h-6"></i>
+                <span class="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">vor</span>
+              </div>
+              <div class="photo-thumb aspect-square rounded-lg relative">
+                <i data-lucide="image" class="w-6 h-6"></i>
+                <span class="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">vor</span>
+              </div>
+              <div class="photo-thumb aspect-square rounded-lg relative">
+                <i data-lucide="image" class="w-6 h-6"></i>
+                <span class="absolute bottom-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">detail</span>
+                <span class="absolute top-1 right-1 bg-white/90 text-[10px] px-1 rounded">A. Berger · 09:30</span>
+              </div>
+              <div onclick="" class="border-2 border-dashed border-slate-200 aspect-square rounded-lg flex flex-col items-center justify-center text-slate-400 cursor-pointer hover:bg-slate-50 hover:border-blue-300">
+                <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                <span class="text-xs mt-1">Drag &amp; Drop oder klicken</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Eigenschaften (Custom Fields) -->
+          <div class="bg-white border rounded-xl p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-medium flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-blue-600"></i>
+                Eigenschaften
+                <span class="text-xs text-slate-400 font-normal">aus Kategorie "Schlagloch"</span>
+              </div>
+              <button class="text-sm text-blue-600">Bearbeiten</button>
+            </div>
+            <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+              <div class="flex justify-between"><span class="text-slate-500">Durchmesser</span><span class="font-medium">40 cm</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Tiefe</span><span class="font-medium">8 cm</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Material</span><span class="font-medium">Asphalt</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Absperrung erforderlich</span><span class="font-medium">Nein</span></div>
+            </div>
+          </div>
+
+          <!-- Bemerkung (vom Erfasser) + Kommentare (nachträglich) -->
+          <div class="bg-white border rounded-xl p-4">
+            <div class="font-medium mb-2">Bemerkung (Erfasser)</div>
+            <div class="text-sm text-slate-600 mb-4">Schlagloch ca. 40 cm Durchmesser, mitten in der Fahrspur stadteinwärts. Wasser sammelt sich. Sollte zeitnah gemacht werden, bevor es größer wird.</div>
+
+            <div class="font-medium mb-2 pt-3 border-t">Weitere Bemerkungen</div>
+            <div class="space-y-2 mb-3">
+              <div class="flex gap-2 text-sm">
+                <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">AB</div>
+                <div class="flex-1">
+                  <div class="bg-slate-50 rounded-lg p-2.5">
+                    <div class="text-xs text-slate-500 mb-0.5">Anna Berger · Disposition · 09:25</div>
+                    Habe noch das Foto vom Bürger Schmidt beigefügt, der den Schaden gemeldet hat. Priorität hochgesetzt.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="flex gap-2 items-start">
+              <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold flex-shrink-0">AB</div>
+              <div class="flex-1">
+                <textarea class="w-full border rounded-lg p-2 text-sm" rows="2" placeholder="Bemerkung schreiben ..."></textarea>
+                <div class="flex justify-end mt-1">
+                  <button class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm flex items-center gap-1.5">
+                    <i data-lucide="send" class="w-3.5 h-3.5"></i> Senden
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Historie -->
+          <div class="bg-white border rounded-xl p-4">
+            <div class="font-medium mb-3">Historie</div>
+            <div class="space-y-3">
+              ${[
+                ['21.05.2026 08:14', 'Schaden erfasst von M. Huber (Erfasser-App)', 'plus', '#3b82f6'],
+                ['21.05.2026 08:14', 'GPS-Position übernommen (±4 m)', 'map-pin', '#64748b'],
+                ['21.05.2026 08:14', 'Adresse aufgelöst: Hauptstraße 12, 99084 Erfurt', 'globe', '#64748b'],
+                ['21.05.2026 08:14', 'Eigenschaften erfasst: Durchmesser 40 cm, Tiefe 8 cm, Material Asphalt', 'sliders-horizontal', '#64748b'],
+                ['21.05.2026 09:20', 'Priorität von normal auf hoch geändert · A. Berger', 'arrow-up', '#f97316'],
+                ['21.05.2026 09:25', 'Bemerkung hinzugefügt · A. Berger', 'message-square', '#3b82f6'],
+                ['21.05.2026 09:30', 'Detail-Foto hochgeladen · A. Berger', 'image', '#3b82f6'],
+              ].map(e=>`
+                <div class="flex gap-3">
+                  <div class="flex flex-col items-center">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center" style="background:${e[3]}20">
+                      <i data-lucide="${e[2]}" class="w-3.5 h-3.5" style="color:${e[3]}"></i>
+                    </div>
+                    <div class="w-px flex-1 bg-slate-200 my-1"></div>
+                  </div>
+                  <div class="pb-3">
+                    <div class="text-xs text-slate-400">${e[0]}</div>
+                    <div class="text-sm text-slate-700">${e[1]}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div class="bg-white border rounded-xl overflow-hidden">
+            <div class="map-mock h-48 relative">
+              <div class="absolute top-2 left-2 z-10 flex flex-col bg-white rounded shadow overflow-hidden">
+                <button class="w-7 h-7 hover:bg-slate-100 border-b"><i data-lucide="plus" class="w-3.5 h-3.5 mx-auto"></i></button>
+                <button class="w-7 h-7 hover:bg-slate-100"><i data-lucide="minus" class="w-3.5 h-3.5 mx-auto"></i></button>
+              </div>
+              <div class="map-pin" style="left:50%;top:50%">
+                <svg width="28" height="34" viewBox="0 0 22 28"><path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="#3b82f6"/><circle cx="11" cy="11" r="4" fill="white"/></svg>
+              </div>
+            </div>
+            <div class="p-3 text-sm">
+              <div class="font-medium">Hauptstraße 12</div>
+              <div class="text-slate-500">99084 Erfurt</div>
+              <div class="text-xs text-slate-400 mt-1">48.30543, 14.28612 · ±4 m</div>
+              <div class="flex gap-3 mt-2">
+                <button class="text-xs text-blue-600 flex items-center gap-1">
+                  <i data-lucide="pencil" class="w-3 h-3"></i> Adresse
+                </button>
+                <button class="text-xs text-blue-600 flex items-center gap-1">
+                  <i data-lucide="shapes" class="w-3 h-3"></i> Geometrie zeichnen
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="bg-white border rounded-xl p-4 text-sm space-y-2">
+            <div class="flex justify-between"><span class="text-slate-500">Kategorie</span><span>Straße › Belag › Schlagloch</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Geometrie-Typ</span><span>Punkt</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Erfasst von</span><span>M. Huber</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Erfasst am</span><span>21.05.2026 08:14</span></div>
+            <div class="flex justify-between"><span class="text-slate-500">Auftrag</span><span class="text-slate-400">— noch keiner —</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function renderDispoDamagePrint(){
+  return `
+    <div class="max-w-[820px] mx-auto">
+      <!-- Print toolbar (versteckt sich beim Drucken) -->
+      <div class="bg-slate-900 text-white px-4 py-2.5 rounded-t-xl flex items-center justify-between print:hidden">
+        <button onclick="goto('#/dispo/damage/detail')" class="text-sm flex items-center gap-1 hover:text-blue-300">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück zum Detail
+        </button>
+        <div class="text-xs text-slate-400">Druckansicht · @media print sorgt für sauberes A4-Layout</div>
+        <div class="flex gap-2">
+          <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-3.5 h-3.5"></i> Drucken
+          </button>
+          <button class="bg-white text-slate-900 px-3 py-1.5 rounded text-sm flex items-center gap-1.5">
+            <i data-lucide="file-down" class="w-3.5 h-3.5"></i> Als PDF speichern
+          </button>
+        </div>
+      </div>
+
+      <!-- A4 Seite -->
+      <div class="bg-white shadow-lg mx-auto my-0 rounded-b-xl print:rounded-none print:shadow-none" style="padding:24mm 18mm 18mm 18mm; min-height:297mm">
+        <!-- Kopf -->
+        <div class="flex items-start justify-between border-b pb-4 mb-5">
+          <div class="flex items-center gap-3">
+            <div class="w-14 h-14 bg-blue-600 rounded-lg flex items-center justify-center">
+              <i data-lucide="building-2" class="w-7 h-7 text-white"></i>
+            </div>
+            <div>
+              <div class="text-lg font-bold text-slate-900">Bauhof Erfurt</div>
+              <div class="text-xs text-slate-500">Stadt Erfurt · Schadensverwaltung</div>
+              <div class="text-xs text-slate-500">Fischmarkt 1, 99084 Erfurt</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs text-slate-500 uppercase tracking-wider">Schadensmeldung</div>
+            <div class="text-2xl font-mono font-bold">SCH-2026-0118</div>
+            <div class="text-xs text-slate-500 mt-1">gedruckt am 21.05.2026 14:32</div>
+          </div>
+        </div>
+
+        <!-- Status-Zeile -->
+        <div class="grid grid-cols-4 gap-3 mb-5 text-sm">
+          <div><div class="text-xs text-slate-500">Status</div><div class="font-medium">${statusBadge('neu')}</div></div>
+          <div><div class="text-xs text-slate-500">Priorität</div><div class="font-medium">${prioBadge('hoch')}</div></div>
+          <div><div class="text-xs text-slate-500">Erfasst am</div><div class="font-medium">21.05.2026 08:14</div></div>
+          <div><div class="text-xs text-slate-500">Erfasst von</div><div class="font-medium">M. Huber</div></div>
+        </div>
+
+        <!-- Kategorie & Adresse -->
+        <div class="grid grid-cols-2 gap-3 mb-5 text-sm">
+          <div>
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Kategorie</div>
+            <div class="font-medium">Straße › Belag › Schlagloch</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Adresse</div>
+            <div class="font-medium">Hauptstraße 12, 99084 Erfurt</div>
+            <div class="text-xs text-slate-500">48.30543, 14.28612 · ±4 m</div>
+          </div>
+        </div>
+
+        <!-- Foto + Karte nebeneinander -->
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          <div>
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Foto</div>
+            <div class="photo-thumb h-48 rounded-lg"><i data-lucide="image" class="w-10 h-10"></i></div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">Position</div>
+            <div class="map-mock h-48 rounded-lg relative border">
+              <div class="map-pin" style="left:50%;top:50%">
+                <svg width="24" height="30" viewBox="0 0 22 28"><path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="#3b82f6"/><circle cx="11" cy="11" r="4" fill="white"/></svg>
+              </div>
+              <div class="absolute bottom-1 right-1 text-[10px] text-slate-500 bg-white/80 px-1">© OSM</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Eigenschaften -->
+        <div class="mb-5">
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Eigenschaften</div>
+          <table class="w-full text-sm">
+            <tr><td class="text-slate-500 py-0.5 w-40">Durchmesser</td><td class="font-medium">40 cm</td></tr>
+            <tr><td class="text-slate-500 py-0.5">Tiefe</td><td class="font-medium">8 cm</td></tr>
+            <tr><td class="text-slate-500 py-0.5">Material</td><td class="font-medium">Asphalt</td></tr>
+            <tr><td class="text-slate-500 py-0.5">Absperrung erforderlich</td><td class="font-medium">Nein</td></tr>
+          </table>
+        </div>
+
+        <!-- Bemerkung -->
+        <div class="mb-5">
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Bemerkung</div>
+          <div class="text-sm">Schlagloch ca. 40 cm Durchmesser, mitten in der Fahrspur stadteinwärts. Wasser sammelt sich. Sollte zeitnah gemacht werden, bevor es größer wird.</div>
+          <div class="mt-2 text-xs text-slate-500">— Weitere Bemerkung (A. Berger, 09:25): Habe noch das Foto vom Bürger Schmidt beigefügt, der den Schaden gemeldet hat. Priorität hochgesetzt.</div>
+        </div>
+
+        <!-- Weitere Fotos als Thumbnails -->
+        <div class="mb-5">
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Weitere Fotos</div>
+          <div class="grid grid-cols-4 gap-2">
+            <div class="photo-thumb h-20 rounded"><i data-lucide="image" class="w-5 h-5"></i></div>
+            <div class="photo-thumb h-20 rounded"><i data-lucide="image" class="w-5 h-5"></i></div>
+          </div>
+        </div>
+
+        <!-- Historie -->
+        <div class="mb-5">
+          <div class="text-xs text-slate-500 uppercase tracking-wider mb-2 border-b pb-1">Historie</div>
+          <table class="w-full text-xs">
+            ${[
+              ['21.05.2026 08:14', 'Schaden erfasst durch M. Huber'],
+              ['21.05.2026 08:14', 'GPS aufgelöst (±4 m), Adresse: Hauptstraße 12, 99084 Erfurt'],
+              ['21.05.2026 08:14', 'Eigenschaften erfasst: Durchmesser 40 cm, Tiefe 8 cm, Material Asphalt'],
+              ['21.05.2026 09:20', 'Priorität von normal auf hoch geändert · A. Berger'],
+              ['21.05.2026 09:25', 'Bemerkung hinzugefügt · A. Berger'],
+              ['21.05.2026 09:30', 'Detail-Foto hochgeladen · A. Berger'],
+            ].map(e=>`
+              <tr class="border-b border-slate-100">
+                <td class="text-slate-500 py-1 w-36">${e[0]}</td>
+                <td>${e[1]}</td>
+              </tr>
+            `).join('')}
+          </table>
+        </div>
+
+        <!-- Fuß -->
+        <div class="border-t pt-3 mt-8 flex justify-between text-xs text-slate-500">
+          <span>Schadensverwaltung Bauhof Erfurt · vertraulich</span>
+          <span>Seite 1 / 1</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDispoOrderNew(){
+  return desktopWrap('dispo', `
+    <div class="p-6 max-w-6xl">
+      <button onclick="goto('#/dispo/damages')" class="text-sm text-slate-500 flex items-center gap-1 mb-3">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück
+      </button>
+      <h1 class="text-2xl font-semibold text-slate-900 mb-1">Neuer Auftrag</h1>
+      <p class="text-sm text-slate-500 mb-6">3 Schäden ausgewählt · Reihenfolge per Drag &amp; Drop anpassen</p>
+      <div class="grid grid-cols-3 gap-6">
+        <div class="col-span-2 space-y-4">
+          <div class="bg-white border rounded-xl p-4 space-y-4">
+            <div>
+              <label class="text-xs uppercase text-slate-500 tracking-wider font-medium block mb-1">Titel</label>
+              <input class="w-full border rounded-lg px-3 py-2 text-sm" value="Schlaglöcher Nordbezirk">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs uppercase text-slate-500 tracking-wider font-medium block mb-1">Ausführende Firma</label>
+                <select class="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option>Bauhof intern</option>
+                  <option>Müller Bau GmbH</option>
+                  <option>Garten Schmid GbR</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs uppercase text-slate-500 tracking-wider font-medium block mb-1">Zeitraum</label>
+                <div class="flex gap-2">
+                  <input type="date" value="2026-05-22" class="border rounded-lg px-3 py-2 text-sm w-full">
+                  <input type="date" value="2026-05-22" class="border rounded-lg px-3 py-2 text-sm w-full">
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs uppercase text-slate-500 tracking-wider font-medium block mb-1">Beschreibung</label>
+              <textarea class="w-full border rounded-lg px-3 py-2 text-sm" rows="2" placeholder="Optionale Beschreibung des Auftrags"></textarea>
+            </div>
+          </div>
+
+          <div class="bg-white border rounded-xl overflow-hidden">
+            <div class="px-4 py-3 border-b flex items-center justify-between">
+              <div class="font-medium">Reihenfolge der Schäden</div>
+              <div class="text-xs text-slate-500">Zeile ziehen, um neu zu sortieren</div>
+            </div>
+            <div>
+              ${[
+                {n:1, id:'SCH-2026-0118', cat:'Straße › Belag › Schlagloch', adr:'Hauptstraße 12', prio:'hoch'},
+                {n:2, id:'SCH-2026-0122', cat:'Straße › Belag › Schlagloch', adr:'Lindenweg 8', prio:'normal'},
+                {n:3, id:'SCH-2026-0119', cat:'Beleuchtung › Lampe defekt', adr:'Marktplatz 3', prio:'normal'},
+              ].map(p=>`
+                <div class="px-4 py-3 border-b flex items-center gap-3 hover:bg-slate-50">
+                  <i data-lucide="grip-vertical" class="w-4 h-4 drag-handle"></i>
+                  <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-semibold">${p.n}</div>
+                  <div class="w-12 h-12 photo-thumb rounded-lg"><i data-lucide="image" class="w-4 h-4"></i></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs text-slate-400">${p.id}</div>
+                    <div class="text-sm font-medium">${p.cat}</div>
+                    <div class="text-xs text-slate-500">${p.adr}</div>
+                  </div>
+                  ${prioBadge(p.prio)}
+                  <div class="flex gap-1">
+                    <input type="time" placeholder="Start" class="border rounded px-2 py-1 text-xs w-24">
+                    <input type="time" placeholder="Ende" class="border rounded px-2 py-1 text-xs w-24">
+                  </div>
+                  <button class="text-slate-400 hover:text-red-600">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              `).join('')}
+            </div>
+            <div class="px-4 py-3 text-center">
+              <button class="text-sm text-blue-600 flex items-center gap-1 mx-auto">
+                <i data-lucide="plus" class="w-4 h-4"></i> Weitere Schäden hinzufügen
+              </button>
+            </div>
+          </div>
+
+          <details class="bg-white border rounded-xl">
+            <summary class="px-4 py-3 flex items-center justify-between font-medium">
+              <span class="flex items-center gap-2"><i data-lucide="calendar-days" class="w-4 h-4"></i> Auf mehrere Tage verteilen</span>
+              <i data-lucide="chevron-down" class="w-4 h-4"></i>
+            </summary>
+            <div class="px-4 pb-4 grid grid-cols-3 gap-3">
+              ${['Tag 1 · Fr 22.05.', 'Tag 2 · Sa 23.05.', 'Tag 3 · So 24.05.'].map((d,i)=>`
+                <div class="border-2 border-dashed border-slate-200 rounded-lg p-3 min-h-[120px]">
+                  <div class="text-xs font-medium text-slate-500 mb-2">${d}</div>
+                  ${i===0?'<div class="bg-slate-100 rounded p-2 text-xs">3 Positionen</div>':'<div class="text-xs text-slate-400">Hierhin ziehen</div>'}
+                </div>
+              `).join('')}
+            </div>
+          </details>
+        </div>
+        <div class="space-y-4">
+          <div class="bg-white border rounded-xl p-4">
+            <div class="font-medium mb-2">Zusammenfassung</div>
+            <div class="text-sm space-y-1.5">
+              <div class="flex justify-between"><span class="text-slate-500">Positionen</span><span>3</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Tage</span><span>1</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Firma</span><span>Bauhof intern</span></div>
+              <div class="flex justify-between"><span class="text-slate-500">Start</span><span>22.05.2026</span></div>
+            </div>
+          </div>
+          <div class="bg-white border rounded-xl overflow-hidden">
+            <div class="px-4 py-2.5 border-b text-sm font-medium">Tour auf der Karte</div>
+            <div class="map-mock h-56 relative">
+              ${[[30,55],[40,70],[50,40]].map((c,i)=>`
+                <div class="map-pin" style="left:${c[0]}%;top:${c[1]}%">
+                  <div class="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold border-2 border-white shadow">${i+1}</div>
+                </div>
+              `).join('')}
+              <svg class="absolute inset-0 w-full h-full" style="pointer-events:none">
+                <path d="M 117 429 L 156 546 L 195 312" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4 4" fill="none"/>
+              </svg>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <button class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+              <i data-lucide="send" class="w-4 h-4"></i> Versenden
+            </button>
+            <button class="w-full bg-slate-100 text-slate-700 py-2.5 rounded-lg font-medium">
+              Als Entwurf speichern
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function renderDispoOrders(){
+  return desktopWrap('dispo', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Aufträge</h1>
+          <p class="text-sm text-slate-500">${ORDERS.length} Aufträge</p>
+        </div>
+        <button onclick="goto('#/dispo/order/new')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Neuer Auftrag
+        </button>
+      </div>
+      <div class="bg-white border rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+            <tr>
+              <th class="px-4 py-2.5 text-left">ID</th>
+              <th class="px-4 py-2.5 text-left">Titel</th>
+              <th class="px-4 py-2.5 text-left">Firma</th>
+              <th class="px-4 py-2.5 text-left">Zeitraum</th>
+              <th class="px-4 py-2.5 text-left">Pos.</th>
+              <th class="px-4 py-2.5 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            ${ORDERS.map(o=>`
+              <tr onclick="goto('#/dispo/order/detail')" class="hover:bg-slate-50 cursor-pointer">
+                <td class="px-4 py-3 font-mono text-xs">${o.id}</td>
+                <td class="px-4 py-3 font-medium">${o.title}</td>
+                <td class="px-4 py-3">${o.firma}</td>
+                <td class="px-4 py-3 text-slate-600">${o.von}${o.von!==o.bis?' – '+o.bis:''}</td>
+                <td class="px-4 py-3">${o.positionen}</td>
+                <td class="px-4 py-3">${orderStatusBadge(o.status)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `);
+}
+
+function renderDispoOrderDetail(){
+  return desktopWrap('dispo', `
+    <div class="p-6 max-w-5xl">
+      <button onclick="goto('#/dispo/orders')" class="text-sm text-slate-500 flex items-center gap-1 mb-3">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück
+      </button>
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <div class="text-xs text-slate-500 mb-1">AUF-2026-0041</div>
+          <h1 class="text-2xl font-semibold text-slate-900">Verkehrsschilder Q2 Tausch</h1>
+          <div class="flex gap-2 mt-2 items-center text-sm">
+            ${orderStatusBadge('fertiggemeldet')}
+            <span class="text-slate-500">·</span>
+            <span class="text-slate-600">Müller Bau GmbH · 19.05. – 20.05.2026 · fertig gemeldet heute 11:42</span>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button class="border px-3 py-2 rounded-lg text-sm flex items-center gap-1.5">
+            <i data-lucide="file-text" class="w-4 h-4"></i> PDF herunterladen
+          </button>
+          <button class="border px-3 py-2 rounded-lg text-sm text-red-600 border-red-200">Stornieren</button>
+        </div>
+      </div>
+
+      <!-- Abnahme-Block (nur sichtbar bei Status fertiggemeldet) -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+            <i data-lucide="package-check" class="w-5 h-5 text-amber-700"></i>
+          </div>
+          <div class="flex-1">
+            <div class="font-medium text-amber-900">Auftrag wurde als fertig gemeldet</div>
+            <div class="text-sm text-amber-800 mt-0.5">
+              Müller Bau hat alle 7 Positionen abgearbeitet. Bei keiner Aktion erfolgt die Abnahme <strong>automatisch in 6 Tagen, 22 Stunden</strong>.
+            </div>
+            <div class="flex gap-2 mt-3">
+              <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                <i data-lucide="check-check" class="w-4 h-4"></i> Auftrag abnehmen
+              </button>
+              <button class="bg-white border border-amber-300 text-amber-900 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5">
+                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Nacharbeit anfordern
+              </button>
+              <button class="text-amber-700 text-sm underline ml-2">Auto-Frist anpassen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white border rounded-xl overflow-hidden mb-4">
+        <div class="px-4 py-3 border-b flex items-center justify-between">
+          <div class="font-medium">Positionen · 7 gesamt · 7 erledigt</div>
+        </div>
+        ${[
+          {n:1, status:'erledigt', cat:'Verkehrsschild verbogen', adr:'Industriestraße 47', t:'08:30 – 09:00', note:'Schild getauscht, Foto ok'},
+          {n:2, status:'erledigt', cat:'Verkehrsschild fehlt', adr:'Lindenweg 12', t:'09:15 – 09:35', note:''},
+          {n:3, status:'erledigt', cat:'Verkehrsschild verschmutzt', adr:'Bahnhofplatz', t:'10:00 – 10:10', note:''},
+          {n:4, status:'erledigt', cat:'Verkehrsschild verbogen', adr:'Krämpfervorstadt 5', t:'10:30 – 11:00', note:''},
+          {n:5, status:'erledigt', cat:'Verkehrsschild fehlt', adr:'Marktplatz 1', t:'11:20 – 11:42', note:''},
+        ].map(p=>`
+          <div class="px-4 py-3 border-b flex items-center gap-3">
+            <div class="w-7 h-7 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-sm font-semibold">${p.n}</div>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-medium">${p.cat}</div>
+              <div class="text-xs text-slate-500">${p.adr} · ${p.t}${p.note?' · '+p.note:''}</div>
+            </div>
+            ${statusBadge(p.status)}
+          </div>
+        `).join('')}
+      </div>
+      <div class="bg-white border rounded-xl p-4">
+        <div class="font-medium mb-3">Kommunikation</div>
+        <div class="space-y-3 text-sm">
+          <div class="flex gap-2">
+            <div class="w-8 h-8 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-semibold">JM</div>
+            <div class="flex-1">
+              <div class="bg-slate-50 rounded-lg p-2.5">
+                <div class="text-xs text-slate-500 mb-0.5">Josef Müller · Müller Bau · 09:42</div>
+                Position 4 dauert länger, Schild stark verbogen. Foto folgt.
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold">AB</div>
+            <div class="flex-1">
+              <div class="bg-blue-50 rounded-lg p-2.5">
+                <div class="text-xs text-slate-500 mb-0.5">Anna Berger · Disposition · 09:45</div>
+                Alles klar, danke für die Info.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+// ============================================================
+//  FIRMENPORTAL
+// ============================================================
+function renderFirmaOrders(){
+  return firmaWrap(`
+    <h1 class="text-2xl font-semibold text-slate-900 mb-1">Meine Aufträge</h1>
+    <p class="text-sm text-slate-500 mb-6">Sie haben 1 aktiven und 1 versendeten Auftrag.</p>
+    <div class="space-y-3">
+      ${[
+        { id:'AUF-2026-0043', title:'Lampenwartung Stadtteil Süd', von:'24.05.2026', bis:'25.05.2026', status:'versendet', pos:8, neu:true },
+        { id:'AUF-2026-0041', title:'Verkehrsschilder Q2 Tausch', von:'19.05.2026', bis:'20.05.2026', status:'bearbeitung', pos:7 },
+      ].map(o=>`
+        <div onclick="goto('#/firma/order/detail')" class="bg-white border rounded-xl p-4 hover:border-orange-300 hover:shadow cursor-pointer relative">
+          ${o.neu?'<span class="absolute top-3 right-3 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">Neu</span>':''}
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+              <i data-lucide="clipboard-list" class="w-6 h-6"></i>
+            </div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-500 mb-0.5">${o.id}</div>
+              <div class="text-lg font-semibold text-slate-900">${o.title}</div>
+              <div class="text-sm text-slate-600 mt-1 flex items-center gap-3">
+                <span class="flex items-center gap-1"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> ${o.von} – ${o.bis}</span>
+                <span class="flex items-center gap-1"><i data-lucide="list" class="w-3.5 h-3.5"></i> ${o.pos} Positionen</span>
+              </div>
+            </div>
+            <div>${orderStatusBadge(o.status)}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="mt-8">
+      <h2 class="text-sm font-medium text-slate-500 uppercase tracking-wider mb-3">Abgeschlossen (letzte 30 Tage)</h2>
+      <div class="bg-white border rounded-xl divide-y">
+        ${[
+          {id:'AUF-2026-0038', title:'Schlaglöcher Industriegebiet', date:'12.05.2026'},
+          {id:'AUF-2026-0035', title:'Markierungen Sommer', date:'05.05.2026'},
+        ].map(o=>`
+          <div class="px-4 py-3 flex items-center justify-between text-sm">
+            <div>
+              <div class="text-xs text-slate-500">${o.id}</div>
+              <div class="font-medium">${o.title}</div>
+            </div>
+            <div class="text-xs text-slate-500">${o.date}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `);
+}
+
+function renderFirmaOrderDetail(){
+  return firmaWrap(`
+    <button onclick="goto('#/firma/orders')" class="text-sm text-slate-500 flex items-center gap-1 mb-3">
+      <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück
+    </button>
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <div class="text-xs text-slate-500 mb-1">AUF-2026-0041</div>
+        <h1 class="text-2xl font-semibold text-slate-900">Verkehrsschilder Q2 Tausch</h1>
+        <div class="text-sm text-slate-600 mt-1">19.05. – 20.05.2026 · Auftraggeber: Bauhof Erfurt</div>
+      </div>
+      <div class="text-right">
+        ${orderStatusBadge('bearbeitung')}
+        <div class="text-xs text-slate-500 mt-2">5 von 7 erledigt</div>
+      </div>
+    </div>
+    <div class="bg-white border rounded-xl overflow-hidden mb-4">
+      <div class="px-4 py-3 border-b flex items-center justify-between">
+        <div class="font-medium">Arbeitsliste</div>
+        <div class="text-xs text-slate-500">Reihenfolge vorgegeben</div>
+      </div>
+      ${[
+        {n:1, status:'erledigt', cat:'Verkehrsschild verbogen', adr:'Industriestraße 47'},
+        {n:2, status:'erledigt', cat:'Verkehrsschild fehlt', adr:'Lindenweg 12'},
+        {n:3, status:'erledigt', cat:'Verkehrsschild verschmutzt', adr:'Bahnhofplatz'},
+        {n:4, status:'bearbeitung', cat:'Verkehrsschild verbogen', adr:'Krämpfervorstadt 5'},
+        {n:5, status:'zugewiesen', cat:'Verkehrsschild fehlt', adr:'Marktplatz 1'},
+        {n:6, status:'zugewiesen', cat:'Verkehrsschild fehlt', adr:'Gärtnerweg 7'},
+        {n:7, status:'zugewiesen', cat:'Verkehrsschild verschmutzt', adr:'Schulgasse 22'},
+      ].map(p=>`
+        <div onclick="${p.status!=='erledigt'?`goto('#/firma/position/edit')`:''}" class="px-4 py-3 border-b flex items-center gap-3 ${p.status!=='erledigt'?'hover:bg-orange-50 cursor-pointer':''}">
+          <div class="w-8 h-8 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-sm font-semibold">${p.n}</div>
+          <div class="w-12 h-12 photo-thumb rounded-lg"><i data-lucide="image" class="w-4 h-4"></i></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium">${p.cat}</div>
+            <div class="text-xs text-slate-500">${p.adr}</div>
+          </div>
+          ${statusBadge(p.status)}
+          ${p.status!=='erledigt'?'<i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>':''}
+        </div>
+      `).join('')}
+    </div>
+    <div class="flex justify-end">
+      <button class="bg-emerald-600 text-white px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 disabled:opacity-50" disabled>
+        <i data-lucide="check-check" class="w-4 h-4"></i> Auftrag abschließen (2 Positionen offen)
+      </button>
+    </div>
+  `);
+}
+
+function renderFirmaPositionEdit(){
+  return firmaWrap(`
+    <button onclick="goto('#/firma/order/detail')" class="text-sm text-slate-500 flex items-center gap-1 mb-3">
+      <i data-lucide="arrow-left" class="w-4 h-4"></i> Zurück zur Arbeitsliste
+    </button>
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 mb-1">Position 4 von 7</div>
+      <h1 class="text-2xl font-semibold text-slate-900">Verkehrsschild verbogen</h1>
+      <div class="text-sm text-slate-600 mt-1">Krämpfervorstadt 5, 99084 Erfurt</div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div class="space-y-4">
+        <div class="bg-white border rounded-xl p-4">
+          <div class="font-medium mb-3">Vor-Fotos &amp; Bemerkung</div>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="photo-thumb aspect-square rounded-lg"><i data-lucide="image" class="w-6 h-6"></i></div>
+            <div class="photo-thumb aspect-square rounded-lg"><i data-lucide="image" class="w-6 h-6"></i></div>
+          </div>
+          <div class="text-sm text-slate-600 bg-slate-50 rounded p-3">
+            Schild stark verbogen, vermutlich Anfahrunfall. Befestigung am Mast prüfen.
+          </div>
+        </div>
+        <div class="bg-white border rounded-xl overflow-hidden">
+          <div class="map-mock h-40 relative">
+            <div class="map-pin" style="left:50%;top:50%">
+              <svg width="24" height="30" viewBox="0 0 22 28"><path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="#f59e0b"/><circle cx="11" cy="11" r="4" fill="white"/></svg>
+            </div>
+          </div>
+          <div class="p-3 text-sm">
+            <button class="text-blue-600 flex items-center gap-1 text-xs">
+              <i data-lucide="navigation" class="w-3.5 h-3.5"></i> In Navi öffnen
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-4">
+        <div class="bg-white border rounded-xl p-4">
+          <div class="font-medium mb-3">Status</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button class="border rounded-lg py-2 text-sm">Offen</button>
+            <button class="bg-amber-500 text-white rounded-lg py-2 text-sm font-medium">In Arbeit</button>
+            <button class="border rounded-lg py-2 text-sm">Erledigt</button>
+          </div>
+          <button class="mt-3 text-xs text-slate-500 flex items-center gap-1">
+            <i data-lucide="skip-forward" class="w-3.5 h-3.5"></i> Übersprungen (mit Begründung)
+          </button>
+        </div>
+        <div class="bg-white border rounded-xl p-4">
+          <div class="font-medium mb-2">Nach-Foto hochladen</div>
+          <div class="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center text-slate-400">
+            <i data-lucide="camera" class="w-8 h-8 mx-auto mb-2"></i>
+            <div class="text-sm">Foto aufnehmen oder ablegen</div>
+          </div>
+        </div>
+        <div class="bg-white border rounded-xl p-4">
+          <div class="font-medium mb-2">Bemerkung an Disposition</div>
+          <textarea class="w-full border rounded-lg p-2 text-sm" rows="3" placeholder="z.B. Material aufgebraucht, Zusatzarbeit nötig ..."></textarea>
+        </div>
+        <button class="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2">
+          <i data-lucide="check" class="w-4 h-4"></i> Als erledigt speichern
+        </button>
+      </div>
+    </div>
+  `);
+}
+
+// ============================================================
+//  ADMIN
+// ============================================================
+function renderAdminUsers(){
+  return desktopWrap('admin', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Nutzer</h1>
+          <p class="text-sm text-slate-500">12 aktiv · 2 inaktiv</p>
+        </div>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Neuer Nutzer
+        </button>
+      </div>
+      <div class="bg-white border rounded-xl overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-xs text-slate-500 uppercase tracking-wider">
+            <tr>
+              <th class="px-4 py-2.5 text-left">Name</th>
+              <th class="px-4 py-2.5 text-left">E-Mail</th>
+              <th class="px-4 py-2.5 text-left">Rolle</th>
+              <th class="px-4 py-2.5 text-left">Firma</th>
+              <th class="px-4 py-2.5 text-left">Letzter Login</th>
+              <th class="px-4 py-2.5 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            ${[
+              ['Anna Berger', 'anna.berger@erfurt.de', 'Disponent', 'Bauhof Erfurt', 'heute · 14:32', true],
+              ['Markus Huber', 'markus.huber@erfurt.de', 'Erfasser', 'Bauhof Erfurt', 'heute · 08:14', true],
+              ['Andrea Mayr', 'andrea.mayr@erfurt.de', 'Erfasser', 'Bauhof Erfurt', 'heute · 09:00', true],
+              ['Josef Müller', 'mueller@muellerbau.de', 'Firmen-Nutzer', 'Müller Bau GmbH', 'heute · 10:15', true],
+              ['Karin Schmid', 'k.schmid@gartenschmid.de', 'Firmen-Nutzer', 'Garten Schmid GbR', 'gestern', true],
+              ['Peter Steiner', 'p.steiner@erfurt.de', 'Admin', 'Bauhof Erfurt', 'vor 3 Tagen', true],
+              ['Thomas Lang', 'lang@altefirma.de', 'Firmen-Nutzer', 'Alte Firma GmbH', 'vor 60 Tagen', false],
+            ].map(u=>`
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-3 font-medium">${u[0]}</td>
+                <td class="px-4 py-3 text-slate-600">${u[1]}</td>
+                <td class="px-4 py-3"><span class="bg-slate-100 text-slate-700 text-xs px-2 py-0.5 rounded-full">${u[2]}</span></td>
+                <td class="px-4 py-3">${u[3]}</td>
+                <td class="px-4 py-3 text-slate-500 text-xs">${u[4]}</td>
+                <td class="px-4 py-3">
+                  ${u[5]?'<span class="text-emerald-600 text-xs flex items-center gap-1"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Aktiv</span>':'<span class="text-slate-400 text-xs flex items-center gap-1"><span class="w-1.5 h-1.5 bg-slate-400 rounded-full"></span> Inaktiv</span>'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `);
+}
+
+function renderAdminCompanies(){
+  return desktopWrap('admin', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Firmen</h1>
+          <p class="text-sm text-slate-500">1 intern · 3 extern</p>
+        </div>
+        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+          <i data-lucide="plus" class="w-4 h-4"></i> Neue Firma
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        ${[
+          { name:'Bauhof Erfurt', type:'intern', kontakt:'Anna Berger', mail:'anna.berger@erfurt.de', user:6, kat:'alle' },
+          { name:'Müller Bau GmbH', type:'extern', kontakt:'Josef Müller', mail:'mueller@muellerbau.de', user:2, kat:'Straße, Markierung' },
+          { name:'Garten Schmid GbR', type:'extern', kontakt:'Karin Schmid', mail:'k.schmid@gartenschmid.de', user:1, kat:'Grünflächen' },
+          { name:'Elektro Wagner KG', type:'extern', kontakt:'Hans Wagner', mail:'h.wagner@elektrowagner.de', user:1, kat:'Beleuchtung' },
+        ].map(f=>`
+          <div class="bg-white border rounded-xl p-4">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <div class="font-semibold text-slate-900">${f.name}</div>
+                <div class="text-xs text-slate-500">${f.type==='intern'?'Intern (Bauhof)':'Externer Dienstleister'}</div>
+              </div>
+              <span class="text-xs ${f.type==='intern'?'bg-blue-100 text-blue-700':'bg-orange-100 text-orange-700'} px-2 py-0.5 rounded-full">${f.type==='intern'?'intern':'extern'}</span>
+            </div>
+            <div class="text-sm space-y-1 text-slate-600">
+              <div class="flex items-center gap-2"><i data-lucide="user" class="w-3.5 h-3.5"></i> ${f.kontakt}</div>
+              <div class="flex items-center gap-2"><i data-lucide="mail" class="w-3.5 h-3.5"></i> ${f.mail}</div>
+              <div class="flex items-center gap-2"><i data-lucide="users" class="w-3.5 h-3.5"></i> ${f.user} Nutzer</div>
+              <div class="flex items-center gap-2"><i data-lucide="tag" class="w-3.5 h-3.5"></i> Standardkategorien: ${f.kat}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `);
+}
+
+function renderAdminCategories(){
+  function renderNode(n, depth=0){
+    const hasChildren = n.children && n.children.length;
+    return `
+      <div>
+        <div class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-slate-50 group" style="padding-left:${depth*20+8}px">
+          <i data-lucide="grip-vertical" class="w-3.5 h-3.5 drag-handle"></i>
+          ${hasChildren?'<i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i>':'<span class="w-3.5"></span>'}
+          <i data-lucide="${hasChildren?'folder':'tag'}" class="w-4 h-4 ${hasChildren?'text-amber-500':'text-slate-400'}"></i>
+          <span class="text-sm flex-1">${n.name}</span>
+          <span class="text-xs text-slate-400 opacity-0 group-hover:opacity-100">${hasChildren?'Gruppe':'Eintrag'}</span>
+          <div class="flex gap-1 opacity-0 group-hover:opacity-100">
+            <button class="text-slate-400 hover:text-slate-700"><i data-lucide="plus" class="w-3.5 h-3.5"></i></button>
+            <button class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></button>
+            <button class="text-slate-400 hover:text-red-600"><i data-lucide="archive" class="w-3.5 h-3.5"></i></button>
+          </div>
+        </div>
+        ${hasChildren?n.children.map(c=>renderNode(c, depth+1)).join(''):''}
+      </div>`;
+  }
+  return desktopWrap('admin', `
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">Schadenskatalog</h1>
+          <p class="text-sm text-slate-500">Mehrstufige Kategorien · Reihenfolge per Drag &amp; Drop</p>
+        </div>
+        <div class="flex gap-2">
+          <button class="border px-3 py-2 rounded-lg text-sm">Inaktive anzeigen</button>
+          <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i> Neue Kategorie
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 gap-4">
+        <div class="col-span-2 bg-white border rounded-xl p-3">
+          ${CATEGORIES.map(c=>renderNode(c)).join('')}
+        </div>
+        <div class="bg-white border rounded-xl p-4">
+          <div class="text-sm font-medium mb-3 flex items-center justify-between">
+            <span>Markiert: Schlagloch</span>
+            <span class="text-xs text-slate-400 font-normal">Blatt-Kategorie</span>
+          </div>
+          <div class="space-y-3 text-sm">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs text-slate-500 block mb-1">Name</label>
+                <input class="w-full border rounded-lg px-2 py-1.5 text-sm" value="Schlagloch">
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 block mb-1">Kurzcode</label>
+                <input class="w-full border rounded-lg px-2 py-1.5 text-sm font-mono" value="STR-BEL-SCHL">
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-slate-500 block mb-1">Übergeordnete Kategorie</label>
+              <input class="w-full border rounded-lg px-2 py-1.5 text-sm" value="Straße › Belag" readonly>
+            </div>
+
+            <!-- Geometrie-Typ (NEU) -->
+            <div class="border-t pt-3">
+              <label class="text-xs text-slate-500 block mb-1.5 uppercase tracking-wider font-medium">Geometrie-Typ</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button class="border-2 border-blue-600 bg-blue-50 rounded-lg p-2 text-xs flex flex-col items-center gap-1">
+                  <i data-lucide="map-pin" class="w-4 h-4 text-blue-600"></i>
+                  <span class="font-medium text-blue-700">Punkt</span>
+                </button>
+                <button class="border border-slate-200 rounded-lg p-2 text-xs flex flex-col items-center gap-1 hover:border-slate-300">
+                  <i data-lucide="minus" class="w-4 h-4 text-slate-500"></i>
+                  <span>Linie</span>
+                </button>
+                <button class="border border-slate-200 rounded-lg p-2 text-xs flex flex-col items-center gap-1 hover:border-slate-300">
+                  <i data-lucide="hexagon" class="w-4 h-4 text-slate-500"></i>
+                  <span>Fläche</span>
+                </button>
+              </div>
+              <div class="text-xs text-slate-500 mt-1.5">Bei "Linie" oder "Fläche" zeichnet der Erfasser die Geometrie auf der Karte.</div>
+            </div>
+
+            <!-- Custom Fields (NEU) -->
+            <div class="border-t pt-3">
+              <div class="flex items-center justify-between mb-2">
+                <label class="text-xs text-slate-500 uppercase tracking-wider font-medium">Eigenschaften (Felder)</label>
+                <button class="text-xs text-blue-600 flex items-center gap-1"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Feld</button>
+              </div>
+              <div class="space-y-2">
+                <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2">
+                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 drag-handle"></i>
+                      <span class="text-sm font-medium">Durchmesser</span>
+                      <span class="text-xs bg-blue-100 text-blue-700 px-1.5 rounded">Dezimal</span>
+                    </div>
+                    <div class="flex gap-1">
+                      <button class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                      <button class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    </div>
+                  </div>
+                  <div class="text-xs text-slate-500">Einheit: cm · Pflicht: nein</div>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2">
+                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 drag-handle"></i>
+                      <span class="text-sm font-medium">Tiefe</span>
+                      <span class="text-xs bg-blue-100 text-blue-700 px-1.5 rounded">Dezimal</span>
+                    </div>
+                    <div class="flex gap-1">
+                      <button class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                      <button class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    </div>
+                  </div>
+                  <div class="text-xs text-slate-500">Einheit: cm · Pflicht: nein</div>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <div class="flex items-center gap-2">
+                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 drag-handle"></i>
+                      <span class="text-sm font-medium">Material</span>
+                      <span class="text-xs bg-violet-100 text-violet-700 px-1.5 rounded">Auswahl</span>
+                    </div>
+                    <div class="flex gap-1">
+                      <button class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                      <button class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    </div>
+                  </div>
+                  <div class="text-xs text-slate-500">Optionen: Asphalt, Pflaster, Beton · Pflicht: nein</div>
+                </div>
+                <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <i data-lucide="grip-vertical" class="w-3.5 h-3.5 drag-handle"></i>
+                      <span class="text-sm font-medium">Absperrung erforderlich</span>
+                      <span class="text-xs bg-emerald-100 text-emerald-700 px-1.5 rounded">Ja/Nein</span>
+                    </div>
+                    <div class="flex gap-1">
+                      <button class="text-slate-400 hover:text-slate-700"><i data-lucide="pencil" class="w-3 h-3"></i></button>
+                      <button class="text-slate-400 hover:text-red-600"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Standard-Werte -->
+            <div class="border-t pt-3 space-y-3">
+              <div>
+                <label class="text-xs text-slate-500 block mb-1">Standard-Priorität</label>
+                <select class="w-full border rounded-lg px-2 py-1.5 text-sm">
+                  <option>— keine —</option>
+                  <option>Niedrig</option>
+                  <option selected>Normal</option>
+                  <option>Hoch</option>
+                  <option>Dringend</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs text-slate-500 block mb-1">Standard-Firma</label>
+                <select class="w-full border rounded-lg px-2 py-1.5 text-sm">
+                  <option>— keine —</option>
+                  <option selected>Bauhof intern</option>
+                  <option>Müller Bau GmbH</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked id="active">
+                <label for="active">Aktiv</label>
+              </div>
+            </div>
+
+            <button class="bg-blue-600 text-white py-2 rounded-lg text-sm font-medium w-full">Speichern</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `);
+}
+</script>
+</body>
+</html>
