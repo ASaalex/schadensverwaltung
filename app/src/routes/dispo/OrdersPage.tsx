@@ -264,7 +264,51 @@ export function DispoOrdersPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border bg-white">
+      {/* Mobile Karten-Layout (< md) */}
+      <div className="space-y-2 md:hidden">
+        {isLoading && <div className="text-center text-sm text-muted-foreground">Lade …</div>}
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {(error as Error).message}
+          </div>
+        )}
+        {!isLoading && sorted.length === 0 && (
+          <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+            <ClipboardList className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+            {orders.length === 0 ? 'Noch keine Aufträge.' : 'Keine Treffer mit diesen Filtern.'}
+          </div>
+        )}
+        {sorted.map((o) => (
+          <div
+            key={o.id}
+            onClick={() => nav(`/dispo/orders/${o.id}`)}
+            className="cursor-pointer rounded-xl border bg-white p-3 shadow-sm"
+          >
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="font-mono">{o.code}</span>
+              <span className={`rounded-full px-2 py-0.5 ${STATUS_BADGE[o.status] ?? 'bg-slate-100'}`}>
+                {STATUS_LABEL[o.status] ?? o.status}
+              </span>
+            </div>
+            <div className="mt-1 text-sm font-medium">{o.title}</div>
+            <div className="text-xs text-muted-foreground">{o.assigned_company_name ?? '—'}</div>
+            <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {o.planned_start_date
+                  ? new Date(o.planned_start_date).toLocaleDateString('de-DE') +
+                    (o.planned_end_date && o.planned_end_date !== o.planned_start_date
+                      ? ' – ' + new Date(o.planned_end_date).toLocaleDateString('de-DE')
+                      : '')
+                  : '—'}
+              </span>
+              <span>{o.positions_count} Pos.</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop-Tabelle (≥ md) */}
+      <div className="hidden overflow-hidden rounded-xl border bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">
             <tr>

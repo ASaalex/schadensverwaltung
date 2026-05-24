@@ -31,4 +31,11 @@
     @apply bg-background text-foreground antialiased;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
+
+  /* Safety-Net: nie horizontal scrollen am Viewport-Level.
+     Schützt vor einzelnen Inhalten, die out-of-bounds gerendert werden. */
+  html, body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
 }

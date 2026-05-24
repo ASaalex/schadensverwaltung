@@ -39,3 +39,6 @@ pnpm-debug.log*
 
 # Mockup-Artefakte
 mockup/node_modules/
+
+.vercel
+.env*

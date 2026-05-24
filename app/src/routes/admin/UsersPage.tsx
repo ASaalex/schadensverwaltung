@@ -123,7 +123,7 @@ export function AdminUsersPage() {
 
   return (
     <AppShell title="Administration" subtitle="Nutzerverwaltung" accent="slate" sidebar={ADMIN_SIDEBAR}>
-      <div className="mb-6 flex items-end justify-between">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-2xl font-semibold">Nutzer</h2>
           <p className="text-sm text-muted-foreground">{data?.length ?? 0} Einträge</p>
@@ -142,7 +142,43 @@ export function AdminUsersPage() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
+      {/* Mobile Karten (< md) */}
+      <div className="space-y-2 md:hidden">
+        {isLoading && <div className="text-center text-sm text-muted-foreground">Lade …</div>}
+        {!isLoading && data?.length === 0 && (
+          <div className="rounded-xl border bg-white p-4 text-center text-sm text-muted-foreground">
+            Noch keine Nutzer.
+          </div>
+        )}
+        {data?.map((u) => (
+          <div key={u.id} className="rounded-xl border bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{u.full_name}</div>
+                <div className="truncate text-xs text-muted-foreground">{u.company_name ?? '—'}</div>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{u.role}</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-xs">
+              {u.active ? (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> aktiv
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-slate-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> inaktiv
+                </span>
+              )}
+              <span className="text-muted-foreground">
+                {new Date(u.created_at).toLocaleDateString('de-DE')}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Tabelle (≥ md) */}
+      <div className="hidden overflow-hidden rounded-xl border bg-white md:block">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -196,7 +232,6 @@ export function AdminUsersPage() {
         size="md"
       >
         {createdInfo ? (
-          /* Erfolgs-Anzeige */
           <div className="space-y-4">
             <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
               <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-600" />
@@ -209,10 +244,10 @@ export function AdminUsersPage() {
             </div>
             <div className="rounded-lg border bg-slate-50 p-3 text-sm">
               <div className="mb-1 text-xs text-slate-500">E-Mail</div>
-              <div className="font-mono">{createdInfo.email}</div>
+              <div className="break-all font-mono">{createdInfo.email}</div>
               <div className="mt-3 mb-1 text-xs text-slate-500">Passwort</div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white px-2 py-1.5 font-mono text-sm">
+                <code className="flex-1 break-all rounded bg-white px-2 py-1.5 font-mono text-sm">
                   {createdInfo.password}
                 </code>
                 <button
@@ -226,9 +261,8 @@ export function AdminUsersPage() {
             </div>
             {createdInfo.email_confirmation_pending && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                ⚠️ In deinem Supabase-Projekt ist <strong>E-Mail-Bestätigung</strong> aktiv. Der neue
-                Nutzer bekommt eine Bestätigungs-Mail an die angegebene Adresse und muss erst den
-                Link darin klicken, bevor er sich einloggen kann.
+                ⚠️ In deinem Supabase-Projekt ist E-Mail-Bestätigung aktiv. Der neue Nutzer
+                bekommt eine Mail und muss den Bestätigungs-Link klicken, bevor er sich einloggen kann.
               </div>
             )}
             <div className="flex justify-end">
@@ -241,7 +275,6 @@ export function AdminUsersPage() {
             </div>
           </div>
         ) : (
-          /* Formular */
           <div className="space-y-3">
             {saveError && (
               <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -304,14 +337,14 @@ export function AdminUsersPage() {
                   className="flex items-center gap-1 rounded-lg border bg-white px-3 py-2 text-xs hover:bg-slate-50"
                   title="Neues Passwort generieren"
                 >
-                  <Wand2 className="h-3.5 w-3.5" /> Generieren
+                  <Wand2 className="h-3.5 w-3.5" />
                 </button>
               </div>
               <div className="mt-1 text-xs text-slate-500">
                 Der Nutzer kann es nach dem ersten Login selbst ändern.
               </div>
             </Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Rolle">
                 <select
                   value={form.role}

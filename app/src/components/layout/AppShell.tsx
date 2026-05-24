@@ -324,7 +324,8 @@ export function AppShell({ title, subtitle, accent = 'blue', sidebar, children }
         )}
 
         {/* ===== CONTENT ===== */}
-        <main className="main-content flex-1 px-3 py-4 md:px-6 md:py-6">{children}</main>
+        {/* min-w-0 ist wichtig — sonst sprengen child-Tabellen den Flex-Container */}
+        <main className="main-content min-w-0 flex-1 px-3 py-4 md:px-6 md:py-6">{children}</main>
       </div>
 
       {/* ===== MOBILE BOTTOM-NAV ===== */}
