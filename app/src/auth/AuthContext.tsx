@@ -37,57 +37,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    let lastLoadedUserId: string | null = null;
 
-    // Sicherheitsnetz: nach 8 Sekunden Loading-State auf jeden Fall beenden,
-    // damit kein endloses "Lade Sitzung …" hängt. Hilft beim Diagnostizieren
-    // von Auth-Hängern (z.B. ungültiger Session-Token nach Schlüssel-Wechsel).
+    // Sicherheitsnetz: nach 8 Sekunden auf jeden Fall raus aus Loading
     const safety = setTimeout(() => {
       if (active) {
         // eslint-disable-next-line no-console
-        console.warn(
-          '[Auth] getSession() hat nach 8s nicht geantwortet. Lokale Session wird verworfen.',
-        );
+        console.warn('[Auth] Timeout 8s — Loading wird beendet');
         setLoading(false);
       }
     }, 8000);
 
-    // eslint-disable-next-line no-console
-    console.log('[Auth] Lade Session …');
-
-    supabase.auth
-      .getSession()
-      .then(async ({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          // eslint-disable-next-line no-console
-          console.error('[Auth] getSession Fehler:', error);
-        }
-        // eslint-disable-next-line no-console
-        console.log('[Auth] Session geladen:', data.session ? `user=${data.session.user.email}` : 'keine Session');
-        setSession(data.session);
-        if (data.session?.user) {
-          await loadProfile(data.session.user.id);
-        }
-      })
-      .catch((e) => {
-        // eslint-disable-next-line no-console
-        console.error('[Auth] getSession() warf Exception:', e);
-      })
-      .finally(() => {
-        if (active) {
-          clearTimeout(safety);
-          setLoading(false);
-        }
-      });
-
+    // EIN einziger Listener — INITIAL_SESSION feuert sofort, also brauchen
+    // wir kein separates getSession() (das hatte vorher Races verursacht).
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      if (!active) return;
       // eslint-disable-next-line no-console
-      console.log('[Auth] StateChange:', event);
+      console.log('[Auth] StateChange:', event, sess?.user?.email ?? '(keine Session)');
+
       setSession(sess);
+
       if (sess?.user) {
-        await loadProfile(sess.user.id);
+        // Profile nur neu laden wenn sich der User-ID wirklich ändert
+        // (vermeidet doppelte Loads bei TOKEN_REFRESHED etc.)
+        if (sess.user.id !== lastLoadedUserId) {
+          lastLoadedUserId = sess.user.id;
+          await loadProfile(sess.user.id);
+        }
       } else {
+        lastLoadedUserId = null;
         setProfile(null);
+      }
+
+      // Loading nach erstem Event beenden (INITIAL_SESSION oder SIGNED_IN)
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        clearTimeout(safety);
+        setLoading(false);
       }
     });
 

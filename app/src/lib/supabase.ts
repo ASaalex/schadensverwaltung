@@ -20,4 +20,19 @@ export const supabase = createClient<Database>(url ?? '', anonKey ?? '', {
   },
 });
 
+/**
+ * Zweiter Client ohne Session-Persistence — für Admin-Operationen wie
+ * `auth.signUp()` zum Anlegen neuer User. Verhindert dass die Admin-Session
+ * im Haupt-Client überschrieben wird (sonst feuert onAuthStateChange und
+ * der AuthContext blockiert die UI).
+ */
+export const auxAuthClient = createClient<Database>(url ?? '', anonKey ?? '', {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storageKey: 'sb-aux-no-store',
+  },
+});
+
 export const hasSupabaseCredentials = Boolean(url && anonKey);

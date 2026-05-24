@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, auxAuthClient } from './supabase';
 import type {
   UserRole,
   CompanyType,
@@ -38,15 +38,11 @@ export interface CreateUserResult {
  * es später über "Passwort vergessen" oder die Profil-Seite ändern.
  */
 export async function createUser(input: CreateUserInput): Promise<CreateUserResult> {
-  // 1) Aktuelle Admin-Session sichern
-  const adminSessionRes = await supabase.auth.getSession();
-  const adminSession = adminSessionRes.data.session;
-  if (!adminSession) {
-    throw new Error('Keine aktive Admin-Session — bitte neu einloggen.');
-  }
-
-  // 2) signUp — wechselt die supabase-js-Session auf den neuen User
-  const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+  // signUp auf dem AUX-Client — der hat persistSession=false, ändert die
+  // Admin-Session also NICHT. Kein onAuthStateChange-Race im Haupt-Client.
+  // eslint-disable-next-line no-console
+  console.log('[createUser] signUp via aux client …');
+  const { data: signUpData, error: signUpErr } = await auxAuthClient.auth.signUp({
     email: input.email,
     password: input.password,
     options: {
@@ -54,53 +50,34 @@ export async function createUser(input: CreateUserInput): Promise<CreateUserResu
     },
   });
   if (signUpErr) {
-    // typische Cases: schwaches Passwort, E-Mail ungültig, Rate Limit
+    // eslint-disable-next-line no-console
+    console.error('[createUser] signUp-Fehler:', signUpErr);
     throw new Error(`Auth-Anlegen fehlgeschlagen: ${signUpErr.message}`);
   }
 
   // Supabase-Anti-Enumeration: bei bereits existierender E-Mail kommt user
   // mit leerem identities-Array zurück
   if (signUpData.user && Array.isArray(signUpData.user.identities) && signUpData.user.identities.length === 0) {
-    // Admin-Session wiederherstellen, dann werfen
-    await supabase.auth.setSession({
-      access_token: adminSession.access_token,
-      refresh_token: adminSession.refresh_token,
-    });
     throw new Error(
       `Die E-Mail-Adresse "${input.email}" ist bereits registriert. ` +
-        `Falls dieser User in deinem Projekt existiert, lege das Profil ` +
-        `manuell in public.users an oder lösche den vorhandenen Auth-User.`,
+        `Lösche den Auth-User im Supabase Dashboard (Authentication → Users) ` +
+        `oder verknüpfe das Profil manuell in public.users.`,
     );
   }
 
   if (!signUpData.user) {
-    // Sehr selten. Möglich bei aggressiven Anti-Enumeration-Settings.
-    await supabase.auth.setSession({
-      access_token: adminSession.access_token,
-      refresh_token: adminSession.refresh_token,
-    });
     throw new Error(
-      'Supabase hat keinen User zurückgegeben. Prüfe im Supabase-Dashboard ' +
-        '→ Authentication → Users, ob die E-Mail bereits existiert oder ob ' +
-        '"Enable signups" deaktiviert ist.',
+      'Supabase hat keinen User zurückgegeben. Prüfe Supabase-Dashboard ' +
+        '→ Authentication → Users (E-Mail evtl. schon vorhanden) und ' +
+        '→ Settings → Sign Ups (aktiviert?).',
     );
   }
   const newUserId = signUpData.user.id;
   const emailConfirmationPending = !signUpData.session && !signUpData.user.email_confirmed_at;
+  // eslint-disable-next-line no-console
+  console.log('[createUser] Auth-User OK, ID:', newUserId);
 
-  // 3) Admin-Session zurücksetzen (sonst kommen RLS-Inserts nicht durch)
-  const restoreRes = await supabase.auth.setSession({
-    access_token: adminSession.access_token,
-    refresh_token: adminSession.refresh_token,
-  });
-  if (restoreRes.error) {
-    throw new Error(
-      `Admin-Session konnte nicht wiederhergestellt werden: ${restoreRes.error.message}. ` +
-        `Auth-User wurde angelegt (ID ${newUserId}) — bitte manuell in public.users verknüpfen.`,
-    );
-  }
-
-  // 4) Profil in public.users anlegen
+  // INSERT in public.users über den HAUPT-Client (= Admin-Session, RLS klappt)
   const { error: insErr } = await supabase.from('users').insert({
     id: newUserId,
     company_id: input.company_id,
@@ -110,10 +87,14 @@ export async function createUser(input: CreateUserInput): Promise<CreateUserResu
     active: true,
   } as never);
   if (insErr) {
+    // eslint-disable-next-line no-console
+    console.error('[createUser] users-INSERT-Fehler:', insErr);
     throw new Error(
       `Profil-Anlegen fehlgeschlagen: ${insErr.message}. Auth-User (ID ${newUserId}) bleibt bestehen.`,
     );
   }
+  // eslint-disable-next-line no-console
+  console.log('[createUser] Profil angelegt');
 
   return {
     user_id: newUserId,

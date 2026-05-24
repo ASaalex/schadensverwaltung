@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
+import { Modal } from '@/components/ui/Modal';
 import { DISPO_SIDEBAR } from './sidebar';
 import { useOrderDetail } from '@/hooks/useOrderDetail';
 import { sendOrder, cancelOrder, acceptOrder, requestRework } from '@/lib/orderActions';
@@ -16,6 +17,8 @@ import {
   Loader2,
   AlertCircle,
   MessageSquare,
+  FileBarChart2,
+  Files,
 } from 'lucide-react';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -60,6 +63,7 @@ export function DispoOrderDetailPage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showReworkPrompt, setShowReworkPrompt] = useState(false);
   const [reworkReason, setReworkReason] = useState('');
+  const [pdfChoiceOpen, setPdfChoiceOpen] = useState(false);
 
   async function runAction(label: string, fn: () => Promise<void>) {
     if (!id) return;
@@ -120,9 +124,9 @@ export function DispoOrderDetailPage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm opacity-50"
-                disabled
-                title="PDF-Export folgt"
+                onClick={() => setPdfChoiceOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-slate-50"
+                title="Druckansicht öffnen"
               >
                 <FileText className="h-4 w-4" /> PDF
               </button>
@@ -333,6 +337,59 @@ export function DispoOrderDetailPage() {
           </div>
         </>
       )}
+
+      {/* ============ PDF-AUSWAHL-MODAL ============ */}
+      <Modal
+        open={pdfChoiceOpen}
+        onClose={() => setPdfChoiceOpen(false)}
+        title="PDF-Ausgabe wählen"
+        description="Welche Variante soll erzeugt werden?"
+        size="md"
+      >
+        <div className="space-y-2">
+          <button
+            onClick={() => {
+              setPdfChoiceOpen(false);
+              nav(`/dispo/orders/${id}/print?mode=order`);
+            }}
+            className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-blue-50 hover:border-blue-400"
+          >
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+              <FileBarChart2 className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-slate-900">Nur Auftrag</div>
+              <div className="text-xs text-slate-500">
+                Eine A4-Seite mit Auftragskopf, Stammdaten und der Positionen-Tabelle.
+                Schnell zum Ausdrucken oder als Übergabe-Beleg.
+              </div>
+            </div>
+          </button>
+          <button
+            onClick={() => {
+              setPdfChoiceOpen(false);
+              nav(`/dispo/orders/${id}/print?mode=full`);
+            }}
+            className="flex w-full items-start gap-3 rounded-lg border border-slate-200 p-3 text-left hover:bg-blue-50 hover:border-blue-400"
+          >
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+              <Files className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-slate-900">Auftrag mit Einzelschäden</div>
+              <div className="text-xs text-slate-500">
+                Auftrags-Übersicht + für jeden Schaden eine eigene A4-Druckansicht mit Fotos,
+                Karte, Eigenschaften und Historie. Vollständige Akte für Archiv oder Firma.
+              </div>
+              {data && (
+                <div className="mt-1 text-xs text-slate-400">
+                  → {data.positions.length + 1} Seite{data.positions.length === 0 ? '' : 'n'} insgesamt
+                </div>
+              )}
+            </div>
+          </button>
+        </div>
+      </Modal>
     </AppShell>
   );
 }

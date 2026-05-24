@@ -8,14 +8,7 @@ import { FirmaRoutes } from './routes/firma/FirmaRoutes';
 import { AdminRoutes } from './routes/admin/AdminRoutes';
 import { NoProfileScreen } from './auth/NoProfileScreen';
 import { LoadingSessionScreen } from './auth/LoadingSessionScreen';
-import type { UserRole } from './types/database';
-
-const ROLE_HOME: Record<UserRole, string> = {
-  admin: '/admin/users',
-  dispatcher: '/dispo/dashboard',
-  field_worker: '/erfasser',
-  company_user: '/firma/orders',
-};
+import { ROLE_HOME } from './auth/roleHome';
 
 function RoleRedirect() {
   const { session, profile, loading } = useAuth();

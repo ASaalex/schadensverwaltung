@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
+import { Modal } from '@/components/ui/Modal';
 import { DISPO_SIDEBAR } from './sidebar';
 import { useDamageDetail } from '@/hooks/useDamageDetail';
 import { LeafletMap } from '@/components/map/LeafletMap';
+import { deleteDamage } from '@/lib/deleteDamage';
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -16,7 +20,12 @@ import {
   MessageSquare,
   Shapes,
   Globe,
+  Trash2,
+  Loader2,
+  Navigation,
+  Ruler,
 } from 'lucide-react';
+import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
 import type { LucideIcon } from 'lucide-react';
 import type { DamageHistoryEvent } from '@/hooks/useDamageDetail';
 import type { PropertyFieldDef } from '@/types/database';
@@ -50,9 +59,28 @@ const EVENT_META: Record<string, { icon: LucideIcon; color: string; label: strin
 export function DispoDamageDetailPage() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
+  const qc = useQueryClient();
   const { data, isLoading, error } = useDamageDetail(id);
   const canBundle =
     (data?.damage.status === 'neu' || data?.damage.status === 'geprueft') && !data?.activeOrder;
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!id) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteDamage(id);
+      await qc.invalidateQueries({ queryKey: ['damage-list'] });
+      nav('/dispo/damages', { replace: true });
+    } catch (e) {
+      setDeleteError((e as Error).message);
+      setDeleting(false);
+    }
+  }
 
   return (
     <AppShell title="Disposition" subtitle="Schadendetail" sidebar={DISPO_SIDEBAR}>
@@ -107,6 +135,13 @@ export function DispoDamageDetailPage() {
                 title={canBundle ? 'Neuen Auftrag mit diesem Schaden erstellen' : 'Schaden bereits zugewiesen oder erledigt'}
               >
                 <PackagePlus className="h-4 w-4" /> In Auftrag bündeln
+              </button>
+              <button
+                onClick={() => { setDeleteError(null); setDeleteOpen(true); }}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                title="Schaden inkl. Fotos löschen"
+              >
+                <Trash2 className="h-4 w-4" /> Löschen
               </button>
             </div>
           </div>
@@ -283,6 +318,56 @@ export function DispoDamageDetailPage() {
                     {data.damage.gps_accuracy_m != null &&
                       ` · ±${Math.round(data.damage.gps_accuracy_m)} m`}
                   </div>
+
+                  {/* Längen-/Flächen-Messung bei Linie/Polygon */}
+                  {(() => {
+                    const geom = data.damage.geometry as
+                      | { type?: string; coordinates?: number[][] | number[][][] }
+                      | null;
+                    if (!geom) return null;
+                    if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+                      const coords = geom.coordinates as number[][];
+                      if (coords.length < 2) return null;
+                      return (
+                        <div className="mt-2 flex items-center gap-1.5 rounded bg-orange-50 px-2 py-1 text-xs text-orange-900">
+                          <Ruler className="h-3 w-3 text-orange-600" />
+                          <span className="font-medium">Länge:</span>
+                          <span>{formatLength(lineLength(coords))}</span>
+                          <span className="ml-auto text-[10px] text-slate-500">{coords.length} Punkte</span>
+                        </div>
+                      );
+                    }
+                    if (geom.type === 'Polygon' && Array.isArray(geom.coordinates)) {
+                      const coords = (geom.coordinates as number[][][])[0];
+                      if (!coords || coords.length < 3) return null;
+                      return (
+                        <div className="mt-2 rounded bg-orange-50 px-2 py-1 text-xs text-orange-900">
+                          <div className="flex items-center gap-1.5">
+                            <Ruler className="h-3 w-3 text-orange-600" />
+                            <span className="font-medium">Fläche:</span>
+                            <span>{formatArea(polygonArea(coords))}</span>
+                            <span className="ml-auto text-[10px] text-slate-500">{coords.length} Punkte</span>
+                          </div>
+                          <div className="mt-0.5 pl-4 text-[11px]">
+                            Umfang: {formatLength(lineLength([...coords, coords[0]]))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Navi-Button */}
+                  {data.damage.gps_lat != null && data.damage.gps_lng != null && (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${data.damage.gps_lat},${data.damage.gps_lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                    >
+                      <Navigation className="h-4 w-4" /> In Navi öffnen
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -315,6 +400,46 @@ export function DispoDamageDetailPage() {
           </div>
         </>
       )}
+
+      {/* ============ LÖSCH-BESTÄTIGUNG ============ */}
+      <Modal open={deleteOpen} onClose={() => !deleting && setDeleteOpen(false)} title="Schaden löschen" size="md">
+        <div className="space-y-3">
+          {deleteError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {deleteError}
+            </div>
+          )}
+          <p className="text-sm">
+            Willst du <strong>{data?.damage.code}</strong> wirklich löschen?
+          </p>
+          <ul className="ml-4 list-disc text-sm text-slate-600">
+            <li>Alle {data?.photos.length ?? 0} Foto(s) werden aus dem Storage entfernt</li>
+            <li>Historie + Auftragspositionen (sofern Auftrag storniert/abgeschlossen) gehen mit</li>
+            <li>Diese Aktion ist <strong>nicht rückgängig</strong> machbar</li>
+          </ul>
+          <p className="text-xs text-amber-700">
+            Hinweis: Wenn der Schaden in einem aktiven Auftrag liegt, lässt sich der Schaden nicht
+            löschen — storniere zuerst den Auftrag.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className="rounded-lg border bg-white px-4 py-2 text-sm hover:bg-slate-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Endgültig löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
     </AppShell>
   );
 }

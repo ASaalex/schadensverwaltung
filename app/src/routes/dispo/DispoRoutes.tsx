@@ -6,6 +6,7 @@ import { DispoDamagePrintPage } from './DamagePrintPage';
 import { DispoOrdersPage } from './OrdersPage';
 import { DispoOrderEditorPage } from './OrderEditorPage';
 import { DispoOrderDetailPage } from './OrderDetailPage';
+import { DispoOrderPrintPage } from './OrderPrintPage';
 import { DispoImportPage } from './ImportPage';
 
 export function DispoRoutes() {
@@ -17,9 +18,10 @@ export function DispoRoutes() {
       <Route path="damages/:id" element={<DispoDamageDetailPage />} />
       <Route path="damages/:id/print" element={<DispoDamagePrintPage />} />
       <Route path="orders"      element={<DispoOrdersPage />} />
-      <Route path="orders/new"  element={<DispoOrderEditorPage />} />
-      <Route path="orders/:id"  element={<DispoOrderDetailPage />} />
-      <Route path="import"      element={<DispoImportPage />} />
+      <Route path="orders/new"        element={<DispoOrderEditorPage />} />
+      <Route path="orders/:id"        element={<DispoOrderDetailPage />} />
+      <Route path="orders/:id/print"  element={<DispoOrderPrintPage />} />
+      <Route path="import"            element={<DispoImportPage />} />
       <Route path="*"         element={<Navigate to="/dispo/dashboard" replace />} />
     </Routes>
   );

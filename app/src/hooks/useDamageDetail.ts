@@ -53,6 +53,10 @@ export interface DamageDetail {
   activeOrder: ActiveOrderInfo | null;
 }
 
+export async function fetchDamageDetail(id: string): Promise<DamageDetail> {
+  return await fetchDetail(id);
+}
+
 async function fetchDetail(id: string): Promise<DamageDetail> {
   // 1) Schaden
   const { data: dRaw, error: dErr } = await supabase

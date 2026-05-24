@@ -389,7 +389,66 @@ export function DispoDamagesPage() {
 
       {/* ============= Tabelle + Karte ============= */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="overflow-hidden rounded-xl border bg-white lg:col-span-2">
+        {/* Mobile Karten-Layout (< md) — Tabelle wäre zu breit fürs Handy */}
+        <div className="space-y-2 md:hidden lg:col-span-2">
+          {isLoading && <div className="text-center text-sm text-muted-foreground">Lade …</div>}
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {(error as Error).message}
+            </div>
+          )}
+          {!isLoading && sorted.length === 0 && (
+            <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+              {hasAnyFilter ? 'Keine Treffer mit diesen Filtern.' : 'Noch keine Schäden erfasst.'}
+            </div>
+          )}
+          {sorted.map((d) => {
+            const checked = bundleIds.has(d.id);
+            const bundlable = isBundlable(d);
+            return (
+              <div
+                key={d.id}
+                onClick={() => nav(`/dispo/damages/${d.id}`)}
+                className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 shadow-sm ${
+                  checked ? 'bg-blue-50/60' : 'bg-white'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!bundlable}
+                  onClick={(e) => { e.stopPropagation(); if (bundlable) toggleBundle(d.id); }}
+                  onChange={() => {}}
+                  className="mt-1 h-4 w-4"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="font-mono">{d.code}</span>
+                    <span>{new Date(d.created_at).toLocaleDateString('de-DE')}</span>
+                  </div>
+                  <div className="truncate text-sm font-medium">{d.category_name ?? '—'}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {[d.address_street, d.address_city].filter(Boolean).join(', ') || '—'}
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${PRIO_BADGE[d.priority] ?? 'bg-slate-100'}`}>
+                      {d.priority}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[d.status] ?? 'bg-slate-100'}`}>
+                      {d.status}
+                    </span>
+                    {d.creator_name && (
+                      <span className="text-xs text-muted-foreground">· {d.creator_name}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop-Tabelle (≥ md) */}
+        <div className="hidden overflow-hidden rounded-xl border bg-white md:block lg:col-span-2">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">

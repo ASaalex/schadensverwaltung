@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { LoadingSessionScreen } from './LoadingSessionScreen';
 import { NoProfileScreen } from './NoProfileScreen';
+import { ROLE_HOME } from './roleHome';
 import type { UserRole } from '@/types/database';
 
 interface Props {
@@ -18,17 +19,10 @@ export function ProtectedRoute({ children, allow }: Props) {
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />;
   if (!profile) return <NoProfileScreen />;
 
+  // Wenn die Rolle nicht für diesen Bereich erlaubt ist, leite zur Startseite
+  // der Rolle weiter — keine Sackgasse für den Nutzer.
   if (allow && !allow.includes(profile.role)) {
-    return (
-      <div className="flex h-screen items-center justify-center p-6 text-center">
-        <div>
-          <h1 className="text-lg font-semibold">Kein Zugriff</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Deine Rolle <code>{profile.role}</code> hat keinen Zugriff auf diesen Bereich.
-          </p>
-        </div>
-      </div>
-    );
+    return <Navigate to={ROLE_HOME[profile.role]} replace />;
   }
 
   return <>{children}</>;
