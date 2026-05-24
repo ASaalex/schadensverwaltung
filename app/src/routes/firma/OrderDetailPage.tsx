@@ -13,7 +13,6 @@ import {
   Image as ImageIcon,
   Calendar,
   Send,
-  MessageSquare,
 } from 'lucide-react';
 
 const POSITION_STATUS_BADGE: Record<string, string> = {
@@ -184,28 +183,11 @@ export function FirmaOrderDetailPage() {
             })}
           </div>
 
-          {/* Kommunikation */}
-          {data.comments.length > 0 && (
-            <div className="mt-4 rounded-xl border bg-white p-4">
-              <div className="mb-3 flex items-center gap-2 font-medium">
-                <MessageSquare className="h-4 w-4 text-orange-600" />
-                Mitteilungen der Disposition
-                <span className="text-xs font-normal text-muted-foreground">
-                  ({data.comments.length})
-                </span>
-              </div>
-              <div className="space-y-2 text-sm">
-                {data.comments.map((c) => (
-                  <div key={c.id} className="rounded-lg bg-slate-50 p-3">
-                    <div className="mb-0.5 text-xs text-muted-foreground">
-                      {c.user_name ?? 'Disposition'} · {new Date(c.created_at).toLocaleString('de-DE')}
-                    </div>
-                    <div className="whitespace-pre-wrap text-slate-700">{c.message}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Chats finden pro Schaden statt — siehe Position öffnen */}
+          <div className="mt-4 rounded-lg border border-orange-200 bg-orange-50 p-3 text-xs text-orange-900">
+            💬 Die Kommunikation mit der Disposition erfolgt jetzt pro Schaden. Tippe auf eine
+            Position oben, um den Chat zu öffnen.
+          </div>
 
           {/* Fertig-melden-Button */}
           {canReport && (

@@ -43,12 +43,20 @@ export interface ActiveOrderInfo {
   position_status: string | null;
 }
 
+export interface RelatedComment {
+  id: string;
+  message: string;
+  created_at: string;
+  user_name: string | null;
+}
+
 export interface DamageDetail {
   damage: Damage;
   category: DamageCategoryFull | null;
   categoryPath: string[];
   photos: DamagePhoto[];
   history: DamageHistoryEvent[];
+  comments: RelatedComment[];
   creatorName?: string | null;
   activeOrder: ActiveOrderInfo | null;
 }
@@ -148,7 +156,25 @@ async function fetchDetail(id: string): Promise<DamageDetail> {
       }
     : null;
 
-  return { damage, category, categoryPath, photos, history, creatorName, activeOrder };
+  // 7) Schaden-Chat-Nachrichten (neuer Per-Damage-Chat)
+  const { data: commentRows } = await supabase
+    .from('damage_comments')
+    .select('id, message, created_at, user:users!user_id ( full_name )')
+    .eq('damage_id', id)
+    .order('created_at', { ascending: false });
+  const comments: RelatedComment[] = ((commentRows ?? []) as unknown as Array<{
+    id: string;
+    message: string;
+    created_at: string;
+    user: { full_name: string } | null;
+  }>).map((r) => ({
+    id: r.id,
+    message: r.message,
+    created_at: r.created_at,
+    user_name: r.user?.full_name ?? null,
+  }));
+
+  return { damage, category, categoryPath, photos, history, comments, creatorName, activeOrder };
 }
 
 export function useDamageDetail(id: string | undefined) {

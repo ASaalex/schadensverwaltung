@@ -7,6 +7,7 @@ import { DISPO_SIDEBAR } from './sidebar';
 import { useDamageDetail } from '@/hooks/useDamageDetail';
 import { LeafletMap } from '@/components/map/LeafletMap';
 import { deleteDamage } from '@/lib/deleteDamage';
+import { DamageChat } from '@/components/chat/DamageChat';
 import {
   ArrowLeft,
   Image as ImageIcon,
@@ -226,6 +227,9 @@ export function DispoDamageDetailPage() {
                 </div>
               )}
 
+              {/* Chat zum Schaden */}
+              {id && <DamageChat damageId={id} title="Chat zum Schaden" accent="blue" />}
+
               {/* Bemerkung vom Erfasser */}
               <div className="rounded-xl border bg-white p-4">
                 <div className="mb-2 font-medium">Bemerkung (Erfasser)</div>
@@ -234,40 +238,73 @@ export function DispoDamageDetailPage() {
                 </div>
               </div>
 
-              {/* Historie */}
+              {/* Historie — Events + Kommentare zeitlich gemischt */}
               <div className="rounded-xl border bg-white p-4">
                 <div className="mb-3 font-medium">Historie</div>
                 <div className="space-y-3">
-                  {data.history.length === 0 && (
-                    <div className="text-sm text-muted-foreground">Keine Events.</div>
-                  )}
-                  {data.history.map((h: DamageHistoryEvent) => {
-                    const meta = EVENT_META[h.event_type] ?? {
-                      icon: Plus,
-                      color: '#64748b',
-                      label: h.event_type,
-                    };
-                    const Icon = meta.icon;
-                    return (
-                      <div key={h.id} className="flex gap-3">
-                        <div
-                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
-                          style={{ background: meta.color + '20' }}
-                        >
-                          <Icon className="h-3.5 w-3.5" style={{ color: meta.color }} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs text-muted-foreground">
-                            {new Date(h.created_at).toLocaleString('de-DE')}
-                          </div>
-                          <div className="text-sm">
-                            <span className="font-medium">{meta.label}</span>
-                            <PayloadHint payload={h.payload} />
-                          </div>
-                        </div>
-                      </div>
+                  {(() => {
+                    type TimelineItem = (
+                      | { kind: 'event'; created_at: string; event: DamageHistoryEvent }
+                      | { kind: 'comment'; created_at: string; comment: typeof data.comments[number] }
                     );
-                  })}
+                    const items: TimelineItem[] = [
+                      ...data.history.map((e) => ({ kind: 'event' as const, created_at: e.created_at, event: e })),
+                      ...data.comments.map((c) => ({ kind: 'comment' as const, created_at: c.created_at, comment: c })),
+                    ].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+
+                    if (items.length === 0) {
+                      return <div className="text-sm text-muted-foreground">Keine Events.</div>;
+                    }
+
+                    return items.map((item) => {
+                      if (item.kind === 'event') {
+                        const h = item.event;
+                        const meta = EVENT_META[h.event_type] ?? {
+                          icon: Plus,
+                          color: '#64748b',
+                          label: h.event_type,
+                        };
+                        const Icon = meta.icon;
+                        return (
+                          <div key={`e-${h.id}`} className="flex gap-3">
+                            <div
+                              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full"
+                              style={{ background: meta.color + '20' }}
+                            >
+                              <Icon className="h-3.5 w-3.5" style={{ color: meta.color }} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(h.created_at).toLocaleString('de-DE')}
+                              </div>
+                              <div className="text-sm">
+                                <span className="font-medium">{meta.label}</span>
+                                <PayloadHint payload={h.payload} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      // Kommentar
+                      const c = item.comment;
+                      return (
+                        <div key={`c-${c.id}`} className="flex gap-3">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-blue-100">
+                            <MessageSquare className="h-3.5 w-3.5 text-blue-600" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(c.created_at).toLocaleString('de-DE')}
+                              {c.user_name && ` · ${c.user_name}`}
+                            </div>
+                            <div className="whitespace-pre-wrap rounded-lg bg-slate-50 p-2 text-sm text-slate-700">
+                              {c.message}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>

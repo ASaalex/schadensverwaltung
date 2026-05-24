@@ -80,6 +80,8 @@ export function DispoDamagesPage() {
     dir: 'desc',
   });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Default-Sicht: erledigte + abgelehnte ausblenden. Toggle macht sie sichtbar.
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Mehrfachauswahl für "Zu Auftrag bündeln"
   const [bundleIds, setBundleIds] = useState<Set<string>>(new Set());
@@ -125,6 +127,8 @@ export function DispoDamagesPage() {
     return damages.filter((d) => {
       const ts = new Date(d.created_at).getTime();
       if (ts < fromTs || ts > toTs) return false;
+      // Default: erledigte + abgelehnte ausblenden (außer User aktiviert Toggle)
+      if (!showCompleted && (d.status === 'erledigt' || d.status === 'abgelehnt')) return false;
       if (statusFilter.size > 0 && !statusFilter.has(d.status)) return false;
       if (prioFilter.size > 0 && !prioFilter.has(d.priority)) return false;
       if (effectiveCategoryIds && !effectiveCategoryIds.has(d.category_id)) return false;
@@ -140,7 +144,7 @@ export function DispoDamagesPage() {
       }
       return true;
     });
-  }, [damages, dateFrom, dateTo, statusFilter, prioFilter, effectiveCategoryIds, searchText]);
+  }, [damages, dateFrom, dateTo, statusFilter, prioFilter, effectiveCategoryIds, searchText, showCompleted]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -378,6 +382,16 @@ export function DispoDamagesPage() {
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showCompleted}
+              onChange={(e) => setShowCompleted(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Erledigte zeigen
+          </label>
 
           {hasAnyFilter && (
             <button onClick={resetFilters} className="flex items-center gap-1 pb-1.5 text-xs text-slate-500 underline">

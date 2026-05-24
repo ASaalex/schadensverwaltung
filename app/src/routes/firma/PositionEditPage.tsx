@@ -9,6 +9,7 @@ import { useDamageDetail } from '@/hooks/useDamageDetail';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { setPositionStatus, type PositionStatus } from '@/lib/orderActions';
+import { DamageChat } from '@/components/chat/DamageChat';
 import {
   ArrowLeft,
   Camera,
@@ -436,17 +437,24 @@ export function FirmaPositionEditPage() {
             )}
           </div>
 
-          {/* Bemerkung */}
+          {/* Bemerkung als Notiz für Disposition (wird auch in Chat geloggt) */}
           <div className="rounded-xl border bg-white p-4">
-            <div className="mb-2 text-sm font-medium">Bemerkung an Disposition</div>
+            <div className="mb-2 text-sm font-medium">Position-Notiz (für Disposition)</div>
             <textarea
               value={companyNotes}
               onChange={(e) => setCompanyNotes(e.target.value)}
-              rows={3}
-              placeholder="z.B. Material aufgebraucht, Zusatzarbeit nötig …"
+              rows={2}
+              placeholder="Kurzhinweis zur Position — wird beim Speichern als Mitteilung gepostet"
               className="w-full rounded border px-3 py-2 text-sm"
             />
           </div>
+
+          {/* Chat-Bereich pro Schaden */}
+          <DamageChat
+            damageId={position.damage_id}
+            title="Chat zum Schaden"
+            accent="orange"
+          />
 
           {/* Speichern */}
           <button

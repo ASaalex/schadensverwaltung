@@ -56,6 +56,7 @@ export function LeafletMap({
     <MapContainer
       center={center}
       zoom={zoom}
+      maxZoom={22}
       scrollWheelZoom={zoomable}
       zoomControl={zoomable}
       doubleClickZoom={zoomable}
@@ -68,6 +69,8 @@ export function LeafletMap({
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
         url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxNativeZoom={19}
+        maxZoom={22}
       />
       {markerPosition && (
         <Marker

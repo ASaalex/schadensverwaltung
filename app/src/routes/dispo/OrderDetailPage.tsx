@@ -16,7 +16,6 @@ import {
   PackageCheck,
   Loader2,
   AlertCircle,
-  MessageSquare,
   FileBarChart2,
   Files,
 } from 'lucide-react';
@@ -263,28 +262,11 @@ export function DispoOrderDetailPage() {
             </div>
           )}
 
-          {/* Kommunikation / Kommentare */}
-          {data.comments.length > 0 && (
-            <div className="mb-4 rounded-xl border bg-white p-4">
-              <div className="mb-3 flex items-center gap-2 font-medium">
-                <MessageSquare className="h-4 w-4 text-blue-600" />
-                Kommentare &amp; Mitteilungen
-                <span className="text-xs font-normal text-muted-foreground">
-                  ({data.comments.length})
-                </span>
-              </div>
-              <div className="space-y-2 text-sm">
-                {data.comments.map((c) => (
-                  <div key={c.id} className="rounded-lg bg-slate-50 p-3">
-                    <div className="mb-0.5 text-xs text-muted-foreground">
-                      {c.user_name ?? '—'} · {new Date(c.created_at).toLocaleString('de-DE')}
-                    </div>
-                    <div className="whitespace-pre-wrap text-slate-700">{c.message}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Chats finden pro Schaden statt — siehe Schadendetail */}
+          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+            💬 Die Kommunikation mit der Firma erfolgt jetzt pro Schaden. Öffne einen Schaden aus
+            der Positions-Liste unten, um den Chat zu sehen oder eine Nachricht zu schreiben.
+          </div>
 
           {/* Positionen */}
           <div className="overflow-hidden rounded-xl border bg-white">

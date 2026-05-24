@@ -78,12 +78,16 @@ export function DispoOrdersPage() {
   const [dateField, setDateField] = useState<'planned_start_date' | 'created_at'>('planned_start_date');
 
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'created', dir: 'desc' });
+  // Default-Sicht: abgeschlossene + stornierte ausblenden
+  const [showArchived, setShowArchived] = useState(false);
 
   const filtered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
     const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : -Infinity;
     const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : Infinity;
     return orders.filter((o) => {
+      // Default: archivierte ausblenden (abgeschlossen + storniert)
+      if (!showArchived && (o.status === 'abgeschlossen' || o.status === 'storniert')) return false;
       if (statusFilter.size > 0 && !statusFilter.has(o.status)) return false;
       if (companyFilter && o.assigned_company_id !== companyFilter) return false;
       // Datums-Filter
@@ -100,7 +104,7 @@ export function DispoOrdersPage() {
       }
       return true;
     });
-  }, [orders, statusFilter, companyFilter, searchText, dateFrom, dateTo, dateField]);
+  }, [orders, statusFilter, companyFilter, searchText, dateFrom, dateTo, dateField, showArchived]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -256,6 +260,16 @@ export function DispoOrdersPage() {
               />
             </div>
           </div>
+          <label className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-1.5 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Archiv zeigen
+          </label>
+
           {hasAnyFilter && (
             <button onClick={resetFilters} className="flex items-center gap-1 pb-1.5 text-xs text-slate-500 underline">
               <X className="h-3 w-3" /> Filter zurücksetzen

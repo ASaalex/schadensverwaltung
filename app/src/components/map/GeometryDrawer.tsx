@@ -30,6 +30,8 @@ interface Props {
   /** Punkte als [lng, lat][] (GeoJSON-Konvention) */
   points: number[][];
   onChange: (points: number[][]) => void;
+  /** Position-Pin (aus Schritt 1) als nicht-bearbeitbarer Anker im Hintergrund */
+  anchorPoint?: [number, number] | null;
 }
 
 /** Synct die Leaflet-Map-Interaktionen mit dem aktuellen Modus. */
@@ -73,7 +75,18 @@ function ClickAddPoint({
   return null;
 }
 
-export function GeometryDrawer({ center, zoom = 17, type, points, onChange }: Props) {
+// Standard-Pin für die Position aus Schritt 1 (semi-transparent, deutlich vom Vertex-Marker abgehoben)
+const anchorIcon = L.divIcon({
+  className: '',
+  iconSize: [22, 28],
+  iconAnchor: [11, 28],
+  html: `<svg width="22" height="28" viewBox="0 0 22 28" xmlns="http://www.w3.org/2000/svg" style="opacity:0.85;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.3))">
+    <path d="M11 0c-6 0-11 5-11 11 0 8 11 17 11 17s11-9 11-17c0-6-5-11-11-11z" fill="#3b82f6" stroke="white" stroke-width="1.5"/>
+    <circle cx="11" cy="11" r="3.5" fill="white"/>
+  </svg>`,
+});
+
+export function GeometryDrawer({ center, zoom = 17, type, points, onChange, anchorPoint }: Props) {
   const [mode, setMode] = useState<Mode>('draw');
 
   // GeoJSON [lng, lat] → Leaflet [lat, lng]
@@ -105,13 +118,20 @@ export function GeometryDrawer({ center, zoom = 17, type, points, onChange }: Pr
 
   return (
     <div className="relative h-full w-full">
-      <MapContainer center={center} zoom={zoom} className="h-full w-full">
+      <MapContainer center={center} zoom={zoom} maxZoom={22} className="h-full w-full">
         <ModeBinder mode={mode} />
         <ClickAddPoint mode={mode} onAdd={addPoint} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxNativeZoom={19}
+          maxZoom={22}
         />
+
+        {/* Anker (Position aus Schritt 1) — wird mit angezeigt, ist aber nicht editierbar */}
+        {anchorPoint && (
+          <Marker position={anchorPoint} icon={anchorIcon} interactive={false} />
+        )}
 
         {/* Eckpunkt-Marker (im Zeichnen-Modus draggable) */}
         {latLngPoints.map((pos, i) => (

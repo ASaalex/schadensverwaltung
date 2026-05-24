@@ -75,7 +75,7 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
 
   return (
     <div className={`relative ${className ?? 'h-full w-full'}`}>
-      <MapContainer center={center} zoom={13} scrollWheelZoom className="h-full w-full">
+      <MapContainer center={center} zoom={13} maxZoom={22} scrollWheelZoom className="h-full w-full">
         <FitBounds items={items} />
 
         {/* Aktiver Layer: XYZ oder WMS */}
@@ -86,6 +86,8 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
               '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
             }
             url={activeLayer?.url_template ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'}
+            maxNativeZoom={19}
+            maxZoom={22}
           />
         )}
         {activeLayer?.type === 'wms' && (() => {

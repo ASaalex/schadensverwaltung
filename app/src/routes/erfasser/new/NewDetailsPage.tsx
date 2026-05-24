@@ -110,6 +110,7 @@ export function NewDetailsPage() {
                 type={cat.geometry_type === 'polygon' ? 'polygon' : 'line'}
                 points={currentPoints}
                 onChange={setPoints}
+                anchorPoint={[pos.lat, pos.lng]}
               />
             </div>
           </div>
