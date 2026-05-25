@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   MapContainer,
-  TileLayer,
   Marker,
   Polygon,
   Polyline,
@@ -11,6 +10,8 @@ import {
 import L from 'leaflet';
 import { Hand, Edit3, Undo2, Trash2, Ruler } from 'lucide-react';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
+import { MapLayerSwitcher } from './MapLayerSwitcher';
+import { useMapLayers } from '@/hooks/useMapLayers';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
 
 // Kleiner farbiger Marker für Eckpunkte (im Zeichenmodus draggable)
@@ -88,6 +89,7 @@ const anchorIcon = L.divIcon({
 
 export function GeometryDrawer({ center, zoom = 17, type, points, onChange, anchorPoint }: Props) {
   const [mode, setMode] = useState<Mode>('draw');
+  const { data: layers } = useMapLayers();
 
   // GeoJSON [lng, lat] → Leaflet [lat, lng]
   const latLngPoints = points.map(([lng, lat]) => [lat, lng] as [number, number]);
@@ -121,12 +123,7 @@ export function GeometryDrawer({ center, zoom = 17, type, points, onChange, anch
       <MapContainer center={center} zoom={zoom} maxZoom={22} className="h-full w-full">
         <ModeBinder mode={mode} />
         <ClickAddPoint mode={mode} onAdd={addPoint} />
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxNativeZoom={19}
-          maxZoom={22}
-        />
+        <MapLayerSwitcher layers={layers} maxZoom={22} />
 
         {/* Anker (Position aus Schritt 1) — wird mit angezeigt, ist aber nicht editierbar */}
         {anchorPoint && (

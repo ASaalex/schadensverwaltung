@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import { MapLayerSwitcher } from './MapLayerSwitcher';
+import { useMapLayers } from '@/hooks/useMapLayers';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
 
 interface Props {
@@ -15,6 +17,8 @@ interface Props {
   line?: number[][] | null;
   className?: string;
   zoomable?: boolean;
+  /** Layer-Switcher (Luftbild etc.) zeigen — default true */
+  showLayerSwitcher?: boolean;
 }
 
 function CenterUpdater({ center }: { center: [number, number] }) {
@@ -45,8 +49,10 @@ export function LeafletMap({
   line,
   className,
   zoomable = true,
+  showLayerSwitcher = true,
 }: Props) {
   const markerRef = useRef<L.Marker>(null);
+  const { data: layers } = useMapLayers();
 
   // GeoJSON-Koordinaten sind [lng, lat], Leaflet erwartet [lat, lng]
   const polygonLatLng = polygon ? polygon.map(([lng, lat]) => [lat, lng] as [number, number]) : null;
@@ -66,12 +72,7 @@ export function LeafletMap({
     >
       <CenterUpdater center={center} />
       <ClickHandler onClick={onMapClick} />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxNativeZoom={19}
-        maxZoom={22}
-      />
+      <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={showLayerSwitcher && zoomable} />
       {markerPosition && (
         <Marker
           position={markerPosition}

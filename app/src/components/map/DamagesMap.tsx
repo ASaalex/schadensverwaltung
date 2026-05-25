@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { MapContainer, Marker, TileLayer, WMSTileLayer, useMap } from 'react-leaflet';
+import { useEffect } from 'react';
+import { MapContainer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Layers } from 'lucide-react';
+import { MapLayerSwitcher } from './MapLayerSwitcher';
 import type { DamageListItem } from '@/hooks/useDamageList';
 import type { MapLayer } from '@/types/database';
 
@@ -28,17 +28,6 @@ function buildIcon(color: string, selected: boolean): L.DivIcon {
       <circle cx="11" cy="11" r="4" fill="white"/>
     </svg>`,
   });
-}
-
-function parseWmsUrl(template: string) {
-  const [base, query = ''] = template.split('?');
-  const params = Object.fromEntries(new URLSearchParams(query));
-  return {
-    base,
-    layers: params.layers,
-    format: params.format ?? 'image/png',
-    transparent: (params.transparent ?? 'true').toLowerCase() === 'true',
-  };
 }
 
 function FitBounds({ items }: { items: DamageListItem[] }) {
@@ -68,41 +57,11 @@ interface Props {
 }
 
 export function DamagesMap({ center, items, selectedId, onPinClick, layers, className }: Props) {
-  const [activeLayerId, setActiveLayerId] = useState<string | null>(
-    layers?.find((l) => l.is_default)?.id ?? layers?.[0]?.id ?? null,
-  );
-  const activeLayer = layers?.find((l) => l.id === activeLayerId) ?? null;
-
   return (
     <div className={`relative ${className ?? 'h-full w-full'}`}>
       <MapContainer center={center} zoom={13} maxZoom={22} scrollWheelZoom className="h-full w-full">
         <FitBounds items={items} />
-
-        {/* Aktiver Layer: XYZ oder WMS */}
-        {(!activeLayer || activeLayer.type === 'xyz') && (
-          <TileLayer
-            attribution={
-              activeLayer?.attribution ??
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-Mitwirkende'
-            }
-            url={activeLayer?.url_template ?? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'}
-            maxNativeZoom={19}
-            maxZoom={22}
-          />
-        )}
-        {activeLayer?.type === 'wms' && (() => {
-          const parsed = parseWmsUrl(activeLayer.url_template);
-          return (
-            <WMSTileLayer
-              key={activeLayer.id}
-              url={parsed.base}
-              layers={parsed.layers ?? ''}
-              format={parsed.format ?? 'image/png'}
-              transparent={parsed.transparent ?? true}
-              attribution={activeLayer.attribution ?? ''}
-            />
-          );
-        })()}
+        <MapLayerSwitcher layers={layers} maxZoom={22} />
 
         {items
           .filter((d) => d.gps_lat != null && d.gps_lng != null)
@@ -117,27 +76,6 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
             />
           ))}
       </MapContainer>
-
-      {/* Layer-Switcher */}
-      {layers && layers.length > 1 && (
-        <div className="absolute right-2 top-2 z-[1000] rounded bg-white shadow">
-          <div className="flex items-center gap-1 border-b px-2 py-1 text-xs text-slate-500">
-            <Layers className="h-3 w-3" />
-            Karte
-          </div>
-          {layers.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => setActiveLayerId(l.id)}
-              className={`block w-full px-3 py-1.5 text-left text-xs ${
-                l.id === activeLayerId ? 'bg-blue-50 font-medium text-blue-700' : 'hover:bg-slate-50'
-              }`}
-            >
-              {l.id === activeLayerId ? '●' : '○'} {l.name}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Status-Legende */}
       <div className="absolute bottom-2 left-2 z-[1000] flex flex-wrap gap-2 rounded bg-white/95 px-2 py-1 text-xs shadow">
