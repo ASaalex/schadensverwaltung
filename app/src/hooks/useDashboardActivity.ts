@@ -18,8 +18,12 @@ export interface ActivityItem {
   order_id?: string;
   order_code?: string;
   user_name?: string | null;
-  message?: string;
+  /** Kurze 1-Zeilen-Zusammenfassung (z.B. Status-Wechsel) */
   details?: string;
+  /** Volltext: bei Nachricht der Chat-Text, bei neuer Schaden die Bemerkung */
+  message?: string;
+  /** Bei neuem Schaden: Kategorie-Pfad */
+  category?: string | null;
 }
 
 /**
@@ -33,10 +37,11 @@ export function useDashboardActivity(limit = 30) {
       const items: ActivityItem[] = [];
 
       // 1) damage_history (alle status/prio-Änderungen, neue Schäden)
+      // Bei 'created' joinen wir zusätzlich Kategorie + Bemerkung damit der Feed Kontext zeigt
       const { data: hist } = await supabase
         .from('damage_history')
         .select(
-          'id, event_type, payload, created_at, damage:damages!damage_id ( id, code ), user:users!created_by ( full_name )',
+          'id, event_type, payload, created_at, damage:damages!damage_id ( id, code, description, category:damage_categories!category_id ( name ) ), user:users!created_by ( full_name )',
         )
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -45,7 +50,7 @@ export function useDashboardActivity(limit = 30) {
         event_type: string;
         payload: Record<string, unknown>;
         created_at: string;
-        damage: { id: string; code: string } | null;
+        damage: { id: string; code: string; description: string | null; category: { name: string } | null } | null;
         user: { full_name: string } | null;
       }>).forEach((h) => {
         if (!h.damage) return;
@@ -58,6 +63,8 @@ export function useDashboardActivity(limit = 30) {
             damage_code: h.damage.code,
             user_name: h.user?.full_name ?? null,
             details: 'Neuer Schaden erfasst',
+            category: h.damage.category?.name ?? null,
+            message: h.damage.description ?? undefined,
           });
         } else if (h.event_type === 'status_changed') {
           items.push({

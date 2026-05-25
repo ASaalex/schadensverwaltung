@@ -37,3 +37,5 @@ ios/
 
 # Supabase CLI
 .supabase/
+
+.vercel

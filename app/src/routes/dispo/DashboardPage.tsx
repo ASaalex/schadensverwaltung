@@ -166,6 +166,8 @@ export function DispoDashboardPage() {
 function ActivityRow({ item, onClick }: { item: ActivityItem; onClick: () => void }) {
   const meta = ACTIVITY_META[item.kind];
   const Icon = meta.icon;
+  const isComment = item.kind === 'damage_comment';
+  const isCreated = item.kind === 'damage_created';
   return (
     <button
       onClick={onClick}
@@ -180,8 +182,7 @@ function ActivityRow({ item, onClick }: { item: ActivityItem; onClick: () => voi
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate font-medium">
-            {ACTIVITY_LABEL[item.kind] ?? item.kind}
-            {' '}
+            {ACTIVITY_LABEL[item.kind] ?? item.kind}{' '}
             <span className="font-mono text-xs text-muted-foreground">
               {item.damage_code ?? item.order_code}
             </span>
@@ -190,10 +191,33 @@ function ActivityRow({ item, onClick }: { item: ActivityItem; onClick: () => voi
             {formatRelativeTime(item.created_at)}
           </span>
         </div>
-        <div className="truncate text-xs text-muted-foreground">
-          {item.details ?? item.message}
-          {item.user_name && <span className="ml-1">· {item.user_name}</span>}
+
+        {/* Sub-Info: Kategorie bei neuem Schaden, Status-Wechsel bei Status, Autor bei Comment */}
+        <div className="text-xs text-muted-foreground">
+          {isCreated && item.category && <span>{item.category}</span>}
+          {!isCreated && !isComment && item.details}
+          {item.user_name && (
+            <span className={isCreated && item.category ? 'ml-1' : ''}>
+              {(isCreated && item.category) || (!isCreated && !isComment && item.details) ? '· ' : ''}
+              {item.user_name}
+            </span>
+          )}
+          {isComment && item.user_name && <span>{item.user_name}</span>}
         </div>
+
+        {/* Volltext: bei Nachricht die Message, bei neuem Schaden die Bemerkung */}
+        {item.message && (
+          <div
+            className={`mt-1 max-w-full whitespace-pre-wrap break-words rounded-lg px-2 py-1 text-xs ${
+              isComment
+                ? 'bg-emerald-50 text-emerald-900'
+                : 'bg-slate-50 italic text-slate-700'
+            }`}
+            style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          >
+            {item.message}
+          </div>
+        )}
       </div>
     </button>
   );
