@@ -104,6 +104,57 @@ export async function createUser(input: CreateUserInput): Promise<CreateUserResu
   };
 }
 
+export interface UpdateUserInput {
+  full_name?: string;
+  phone?: string | null;
+  role?: UserRole;
+  company_id?: string;
+  active?: boolean;
+}
+
+export async function updateUser(userId: string, patch: UpdateUserInput): Promise<void> {
+  const cleaned: Record<string, unknown> = {};
+  if (patch.full_name !== undefined) cleaned.full_name = patch.full_name.trim();
+  if (patch.phone !== undefined) cleaned.phone = patch.phone?.trim() || null;
+  if (patch.role !== undefined) cleaned.role = patch.role;
+  if (patch.company_id !== undefined) cleaned.company_id = patch.company_id;
+  if (patch.active !== undefined) cleaned.active = patch.active;
+  const { error } = await supabase.from('users').update(cleaned as never).eq('id', userId);
+  if (error) throw new Error(`Nutzer aktualisieren fehlgeschlagen: ${error.message}`);
+}
+
+/**
+ * Löscht das Profil aus public.users.
+ * Hinweis: der zugehörige Auth-User in auth.users bleibt bestehen (das geht
+ * nur über die service_role-API, die wir im Frontend nicht haben). Der User
+ * kann sich noch anmelden, sieht dann den "Kein-Profil"-Screen.
+ */
+export async function deleteUserProfile(userId: string): Promise<void> {
+  const { error } = await supabase.from('users').delete().eq('id', userId);
+  if (error) throw new Error(`Nutzer-Profil löschen fehlgeschlagen: ${error.message}`);
+}
+
+export interface UpdateCompanyInput {
+  name?: string;
+  type?: CompanyType;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address?: string | null;
+  active?: boolean;
+}
+
+export async function updateCompany(id: string, patch: UpdateCompanyInput): Promise<void> {
+  const cleaned: Record<string, unknown> = {};
+  if (patch.name !== undefined) cleaned.name = patch.name.trim();
+  if (patch.type !== undefined) cleaned.type = patch.type;
+  if (patch.contact_email !== undefined) cleaned.contact_email = patch.contact_email?.trim() || null;
+  if (patch.contact_phone !== undefined) cleaned.contact_phone = patch.contact_phone?.trim() || null;
+  if (patch.address !== undefined) cleaned.address = patch.address?.trim() || null;
+  if (patch.active !== undefined) cleaned.active = patch.active;
+  const { error } = await supabase.from('companies').update(cleaned as never).eq('id', id);
+  if (error) throw new Error(`Firma aktualisieren fehlgeschlagen: ${error.message}`);
+}
+
 /** Generator für ein zufälliges, ausreichend starkes Passwort. */
 export function generatePassword(len = 14): string {
   const lower = 'abcdefghijkmnopqrstuvwxyz';

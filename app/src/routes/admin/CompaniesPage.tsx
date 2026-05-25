@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
-import { createCompany, updateCompanyActive } from '@/lib/adminActions';
+import { createCompany, updateCompany, updateCompanyActive } from '@/lib/adminActions';
 import { ADMIN_SIDEBAR } from './sidebar';
-import { Building2, User, Mail, Plus, Loader2, AlertCircle } from 'lucide-react';
+import { Building2, User, Mail, Plus, Loader2, AlertCircle, Edit3 } from 'lucide-react';
 import type { CompanyType } from '@/types/database';
 
 interface Row {
@@ -33,6 +33,7 @@ export function AdminCompaniesPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ['admin-companies'], queryFn: fetchCompanies });
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: '',
     type: 'external_company' as CompanyType,
@@ -43,19 +44,27 @@ export function AdminCompaniesPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  function openModal() {
+  function openCreate() {
+    setEditingId(null);
+    setForm({ name: '', type: 'external_company', contact_email: '', contact_phone: '', address: '' });
+    setSaveError(null);
+    setModalOpen(true);
+  }
+
+  function openEdit(c: Row) {
+    setEditingId(c.id);
     setForm({
-      name: '',
-      type: 'external_company',
-      contact_email: '',
-      contact_phone: '',
-      address: '',
+      name: c.name,
+      type: c.type,
+      contact_email: c.contact_email ?? '',
+      contact_phone: c.contact_phone ?? '',
+      address: c.address ?? '',
     });
     setSaveError(null);
     setModalOpen(true);
   }
 
-  async function handleCreate() {
+  async function handleSave() {
     setSaveError(null);
     if (!form.name.trim()) {
       setSaveError('Name ist Pflicht.');
@@ -63,13 +72,23 @@ export function AdminCompaniesPage() {
     }
     setSaving(true);
     try {
-      await createCompany({
-        name: form.name,
-        type: form.type,
-        contact_email: form.contact_email || null,
-        contact_phone: form.contact_phone || null,
-        address: form.address || null,
-      });
+      if (editingId) {
+        await updateCompany(editingId, {
+          name: form.name,
+          type: form.type,
+          contact_email: form.contact_email || null,
+          contact_phone: form.contact_phone || null,
+          address: form.address || null,
+        });
+      } else {
+        await createCompany({
+          name: form.name,
+          type: form.type,
+          contact_email: form.contact_email || null,
+          contact_phone: form.contact_phone || null,
+          address: form.address || null,
+        });
+      }
       await qc.invalidateQueries({ queryKey: ['admin-companies'] });
       await qc.invalidateQueries({ queryKey: ['companies'] });
       setModalOpen(false);
@@ -98,7 +117,7 @@ export function AdminCompaniesPage() {
           <p className="text-sm text-muted-foreground">{data?.length ?? 0} Einträge</p>
         </div>
         <button
-          onClick={openModal}
+          onClick={openCreate}
           className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           <Plus className="h-4 w-4" /> Neue Firma
@@ -156,19 +175,32 @@ export function AdminCompaniesPage() {
                   <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> inaktiv
                 </span>
               )}
-              <button
-                onClick={() => toggleActive(c.id, !c.active)}
-                className="text-blue-600 hover:underline"
-              >
-                {c.active ? 'Deaktivieren' : 'Aktivieren'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => openEdit(c)}
+                  className="flex items-center gap-1 text-blue-600 hover:underline"
+                >
+                  <Edit3 className="h-3 w-3" /> Bearbeiten
+                </button>
+                <button
+                  onClick={() => toggleActive(c.id, !c.active)}
+                  className="text-slate-500 hover:text-slate-800 hover:underline"
+                >
+                  {c.active ? 'Deaktivieren' : 'Aktivieren'}
+                </button>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ============ NEUE-FIRMA-MODAL ============ */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Neue Firma" size="md">
+      {/* ============ NEUE/EDIT-FIRMA-MODAL ============ */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title={editingId ? 'Firma bearbeiten' : 'Neue Firma'}
+        size="md"
+      >
         <div className="space-y-3">
           {saveError && (
             <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -245,12 +277,12 @@ export function AdminCompaniesPage() {
               Abbrechen
             </button>
             <button
-              onClick={handleCreate}
+              onClick={handleSave}
               disabled={saving}
               className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Anlegen
+              {editingId ? 'Speichern' : 'Anlegen'}
             </button>
           </div>
         </div>

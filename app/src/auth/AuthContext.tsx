@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { cacheGet, cacheSet, CACHE_KEYS } from '@/lib/localCache';
 import type { UserProfile } from '@/types/database';
 
 interface AuthState {
@@ -21,17 +22,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      if (error) throw error;
+      if (data) {
+        setProfile(data as UserProfile);
+        // Cache für Offline-Start
+        cacheSet(CACHE_KEYS.profile(userId), data);
+      } else {
+        // Kein Eintrag — auch keine cache-Datei, das wäre falsch
+        setProfile(null);
+      }
+    } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Profil laden fehlgeschlagen:', error);
-      setProfile(null);
-    } else {
-      setProfile(data as UserProfile | null);
+      console.warn('[Auth] Profil-Online-Load fehlgeschlagen — versuche Cache:', err);
+      const cached = cacheGet<UserProfile>(CACHE_KEYS.profile(userId));
+      if (cached) {
+        // eslint-disable-next-line no-console
+        console.log('[Auth] Profil aus Offline-Cache geladen');
+        setProfile(cached);
+      } else {
+        setProfile(null);
+      }
     }
   }
 

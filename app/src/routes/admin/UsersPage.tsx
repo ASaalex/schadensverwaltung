@@ -3,27 +3,31 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
-import { createUser, generatePassword } from '@/lib/adminActions';
+import { createUser, updateUser, deleteUserProfile, generatePassword } from '@/lib/adminActions';
 import { useCompanies } from '@/hooks/useCompanies';
 import { useAuth } from '@/auth/AuthContext';
 import { ADMIN_SIDEBAR } from './sidebar';
-import { UserPlus, Loader2, AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Wand2 } from 'lucide-react';
+import {
+  UserPlus, Loader2, AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Wand2,
+  Edit3, Trash2,
+} from 'lucide-react';
 import type { UserRole } from '@/types/database';
 
 interface UserRow {
   id: string;
   full_name: string;
-  role: string;
+  role: UserRole;
   active: boolean;
   created_at: string;
   company_id: string;
+  phone: string | null;
   company_name?: string;
 }
 
 async function fetchUsers(): Promise<UserRow[]> {
   const { data, error } = await supabase
     .from('users')
-    .select('id, full_name, role, active, created_at, company_id, company:companies!company_id ( name )')
+    .select('id, full_name, role, active, created_at, company_id, phone, company:companies!company_id ( name )')
     .order('full_name');
   if (error) throw error;
   const rows = (data ?? []) as unknown as Array<UserRow & { company: { name: string } | null }>;
@@ -61,6 +65,83 @@ export function AdminUsersPage() {
     email_confirmation_pending: boolean;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Edit-Modus
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<UserRow | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', role: 'field_worker' as UserRole, company_id: '', active: true });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  // Delete
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState<UserRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  function openEdit(u: UserRow) {
+    setEditing(u);
+    setEditForm({
+      full_name: u.full_name,
+      phone: u.phone ?? '',
+      role: u.role,
+      company_id: u.company_id,
+      active: u.active,
+    });
+    setEditError(null);
+    setEditOpen(true);
+  }
+
+  async function handleEditSave() {
+    if (!editing) return;
+    setEditError(null);
+    if (!editForm.full_name.trim()) {
+      setEditError('Name ist Pflicht.');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateUser(editing.id, {
+        full_name: editForm.full_name,
+        phone: editForm.phone,
+        role: editForm.role,
+        company_id: editForm.company_id,
+        active: editForm.active,
+      });
+      await qc.invalidateQueries({ queryKey: ['admin-users'] });
+      setEditOpen(false);
+    } catch (e) {
+      setEditError((e as Error).message);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function toggleActive(u: UserRow) {
+    try {
+      await updateUser(u.id, { active: !u.active });
+      await qc.invalidateQueries({ queryKey: ['admin-users'] });
+    } catch (e) {
+      alert((e as Error).message);
+    }
+  }
+
+  function openDelete(u: UserRow) {
+    setDeleting(u);
+    setDeleteOpen(true);
+  }
+  async function handleDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await deleteUserProfile(deleting.id);
+      await qc.invalidateQueries({ queryKey: ['admin-users'] });
+      setDeleteOpen(false);
+      setDeleting(null);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   function openModal() {
     setForm({
@@ -153,25 +234,30 @@ export function AdminUsersPage() {
         {data?.map((u) => (
           <div key={u.id} className="rounded-xl border bg-white p-3">
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{u.full_name}</div>
                 <div className="truncate text-xs text-muted-foreground">{u.company_name ?? '—'}</div>
               </div>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{u.role}</span>
             </div>
             <div className="mt-2 flex items-center justify-between text-xs">
-              {u.active ? (
-                <span className="flex items-center gap-1 text-emerald-600">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> aktiv
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-slate-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> inaktiv
-                </span>
-              )}
-              <span className="text-muted-foreground">
-                {new Date(u.created_at).toLocaleDateString('de-DE')}
-              </span>
+              <button
+                onClick={() => toggleActive(u)}
+                className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                  u.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${u.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                {u.active ? 'aktiv' : 'inaktiv'}
+              </button>
+              <div className="flex gap-1">
+                <button onClick={() => openEdit(u)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100" title="Bearbeiten">
+                  <Edit3 className="h-3.5 w-3.5" />
+                </button>
+                <button onClick={() => openDelete(u)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Löschen">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -187,35 +273,47 @@ export function AdminUsersPage() {
               <th className="px-4 py-2.5 text-left">Firma</th>
               <th className="px-4 py-2.5 text-left">Status</th>
               <th className="px-4 py-2.5 text-left">Angelegt</th>
+              <th className="w-20 px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {isLoading && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Lade …</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Lade …</td></tr>
             )}
             {!isLoading && data?.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Noch keine Nutzer.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Noch keine Nutzer.</td></tr>
             )}
             {data?.map((u) => (
-              <tr key={u.id}>
+              <tr key={u.id} className="group">
                 <td className="px-4 py-3 font-medium">{u.full_name}</td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs">{u.role}</span>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{u.company_name ?? '—'}</td>
                 <td className="px-4 py-3">
-                  {u.active ? (
-                    <span className="flex items-center gap-1 text-xs text-emerald-600">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> aktiv
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs text-slate-400">
-                      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" /> inaktiv
-                    </span>
-                  )}
+                  <button
+                    onClick={() => toggleActive(u)}
+                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs ${
+                      u.active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                    title={u.active ? 'Klick zum Deaktivieren' : 'Klick zum Aktivieren'}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${u.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                    {u.active ? 'aktiv' : 'inaktiv'}
+                  </button>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   {new Date(u.created_at).toLocaleDateString('de-DE')}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button onClick={() => openEdit(u)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600" title="Bearbeiten">
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => openDelete(u)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Löschen">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -390,6 +488,114 @@ export function AdminUsersPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* ============ EDIT-MODAL ============ */}
+      <Modal open={editOpen} onClose={() => !editSaving && setEditOpen(false)} title="Nutzer bearbeiten" size="md">
+        <div className="space-y-3">
+          {editError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {editError}
+            </div>
+          )}
+          <Field label="Voller Name">
+            <input
+              type="text"
+              value={editForm.full_name}
+              onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              autoFocus
+            />
+          </Field>
+          <Field label="Telefon (optional)">
+            <input
+              type="text"
+              value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Rolle">
+              <select
+                value={editForm.role}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value as UserRole })}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Firma">
+              <select
+                value={editForm.company_id}
+                onChange={(e) => setEditForm({ ...editForm, company_id: e.target.value })}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+              >
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.type === 'internal_bauhof' ? '(intern)' : '(extern)'}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={editForm.active}
+              onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
+              className="h-4 w-4"
+            />
+            Aktiv (Nutzer darf sich einloggen / Profil sichtbar)
+          </label>
+          <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-600">
+            E-Mail kann hier nicht geändert werden — falls nötig, lösche das Profil und lege es mit
+            der neuen E-Mail neu an, oder ändere es im Supabase Dashboard.
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setEditOpen(false)} disabled={editSaving} className="rounded-lg border bg-white px-4 py-2 text-sm hover:bg-slate-50">
+              Abbrechen
+            </button>
+            <button
+              onClick={handleEditSave}
+              disabled={editSaving}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {editSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Speichern
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ============ DELETE-BESTÄTIGUNG ============ */}
+      <Modal open={deleteOpen} onClose={() => !deleteBusy && setDeleteOpen(false)} title="Nutzer-Profil löschen" size="md">
+        <div className="space-y-3">
+          <p className="text-sm">
+            Profil von <strong>{deleting?.full_name}</strong> wirklich löschen?
+          </p>
+          <ul className="ml-4 list-disc text-sm text-slate-600">
+            <li>Eintrag aus <code>public.users</code> wird entfernt</li>
+            <li>Auth-Account in <code>auth.users</code> bleibt bestehen — bei erneutem Login
+              sieht die Person den "Kein-Profil"-Bildschirm</li>
+            <li>Zum vollständigen Löschen den User danach im Supabase-Dashboard löschen</li>
+          </ul>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={() => setDeleteOpen(false)} disabled={deleteBusy} className="rounded-lg border bg-white px-4 py-2 text-sm hover:bg-slate-50">
+              Abbrechen
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={deleteBusy}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {deleteBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Profil löschen
+            </button>
+          </div>
+        </div>
       </Modal>
     </AppShell>
   );
