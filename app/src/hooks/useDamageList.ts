@@ -22,33 +22,44 @@ export interface DamageListItem {
   creator_name: string | null;
 }
 
-/** Liefert alle Schäden inkl. zugehöriger Kategorie-Namen + Erfasser-Name. */
+type RawRow = Omit<DamageListItem, 'category_name' | 'creator_name'> & {
+  category: { name: string } | null;
+  creator: { full_name: string } | null;
+};
+
+const SELECT = `
+  id, code, status, priority, created_at, created_by,
+  description, gps_lat, gps_lng, gps_accuracy_m, geometry,
+  address_street, address_house_number, address_postal_code, address_city,
+  category_id,
+  category:damage_categories!category_id ( name ),
+  creator:users!created_by ( full_name )
+`;
+
+/** Liefert ALLE Schäden — lädt seitenweise (je 1 000 Zeilen) bis kein Rest mehr. */
 export function useDamageList() {
   return useQuery({
     queryKey: ['damage-list'],
     queryFn: async (): Promise<DamageListItem[]> => {
-      const { data, error } = await supabase
-        .from('damages')
-        .select(
-          `
-          id, code, status, priority, created_at, created_by,
-          description, gps_lat, gps_lng, gps_accuracy_m, geometry,
-          address_street, address_house_number, address_postal_code, address_city,
-          category_id,
-          category:damage_categories!category_id ( name ),
-          creator:users!created_by ( full_name )
-        `,
-        )
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      // supabase-js gibt joins als verschachtelte Objekte
-      const rows = (data ?? []) as unknown as Array<
-        Omit<DamageListItem, 'category_name' | 'creator_name'> & {
-          category: { name: string } | null;
-          creator: { full_name: string } | null;
-        }
-      >;
-      return rows.map((r) => ({
+      const PAGE = 1000;
+      let all: RawRow[] = [];
+      let from = 0;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from('damages')
+          .select(SELECT)
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1);
+
+        if (error) throw error;
+        const rows = (data ?? []) as unknown as RawRow[];
+        all = all.concat(rows);
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+
+      return all.map((r) => ({
         id: r.id,
         code: r.code,
         status: r.status,

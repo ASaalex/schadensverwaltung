@@ -253,7 +253,7 @@ export function AppShell({ title, subtitle, accent = 'blue', sidebar, children }
     <div className="min-h-screen bg-slate-50">
       {/* ===== TOP-HEADER ===== */}
       <header className="sticky top-0 z-40 border-b bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-3 py-2.5 md:gap-4 md:px-6 md:py-3">
+        <div className="flex w-full items-center justify-between gap-3 px-3 py-2.5 md:gap-4 md:px-6 md:py-3">
           <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
             <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg md:h-9 md:w-9 ${ACCENT[accent]}`}>
               <Construction className="h-4 w-4 text-white md:h-5 md:w-5" />
@@ -295,7 +295,7 @@ export function AppShell({ title, subtitle, accent = 'blue', sidebar, children }
       {/* ===== MOBILE SUB-NAV (Sidebar als Pills) ===== */}
       {sidebar && sidebar.length > 0 && <MobileSubNav items={sidebar} />}
 
-      <div className="mx-auto flex max-w-7xl">
+      <div className="flex w-full">
         {/* ===== DESKTOP SIDEBAR ===== */}
         {sidebar && sidebar.length > 0 && (
           <aside className="hidden w-56 flex-shrink-0 border-r bg-white py-4 md:block">

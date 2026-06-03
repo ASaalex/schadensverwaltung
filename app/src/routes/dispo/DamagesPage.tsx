@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
@@ -11,6 +11,8 @@ import {
   Search,
   Download,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronsUpDown,
   FileSpreadsheet,
@@ -74,6 +76,10 @@ export function DispoDamagesPage() {
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set()); // IDs der gewählten Roots
   const [searchText, setSearchText] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+
+  // ============= Pagination =============
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(50);
 
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({
     key: 'created_at',
@@ -167,6 +173,14 @@ export function DispoDamagesPage() {
     return [50.9787, 11.0328]; // Erfurt
   }, [sorted]);
 
+  // Page bei Filter- oder Sort-Änderung zurücksetzen
+  useEffect(() => { setPage(0); }, [sorted]);
+  const tableRows = useMemo(
+    () => sorted.slice(page * pageSize, (page + 1) * pageSize),
+    [sorted, page, pageSize],
+  );
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+
   // ============= Filter zurücksetzen =============
   const hasAnyFilter =
     !!dateFrom || !!dateTo || statusFilter.size > 0 || prioFilter.size > 0 || categoryFilter.size > 0 || !!searchText;
@@ -210,6 +224,7 @@ export function DispoDamagesPage() {
             {filtered.length} von {damages.length}
             {hasAnyFilter && <span className="ml-1 text-blue-600">· gefiltert</span>}
             {bundleIds.size > 0 && <span className="ml-1 text-blue-600">· {bundleIds.size} ausgewählt</span>}
+            <span className="ml-1">· Seite {page + 1}/{totalPages}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -402,9 +417,13 @@ export function DispoDamagesPage() {
       </div>
 
       {/* ============= Tabelle + Karte ============= */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Mobile Karten-Layout (< md) — Tabelle wäre zu breit fürs Handy */}
-        <div className="space-y-2 md:hidden lg:col-span-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+
+        {/* Linke Spalte: Tabelle + Pagination (beide in einem Container → map bleibt oben rechts) */}
+        <div className="flex flex-col gap-4 lg:col-span-3">
+
+        {/* Mobile Karten-Layout (< md) */}
+        <div className="space-y-2 md:hidden">
           {isLoading && <div className="text-center text-sm text-muted-foreground">Lade …</div>}
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -416,7 +435,7 @@ export function DispoDamagesPage() {
               {hasAnyFilter ? 'Keine Treffer mit diesen Filtern.' : 'Noch keine Schäden erfasst.'}
             </div>
           )}
-          {sorted.map((d) => {
+          {tableRows.map((d) => {
             const checked = bundleIds.has(d.id);
             const bundlable = isBundlable(d);
             return (
@@ -462,7 +481,7 @@ export function DispoDamagesPage() {
         </div>
 
         {/* Desktop-Tabelle (≥ md) */}
-        <div className="hidden overflow-hidden rounded-xl border bg-white md:block lg:col-span-2">
+        <div className="hidden overflow-hidden rounded-xl border bg-white md:block">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">
@@ -471,13 +490,13 @@ export function DispoDamagesPage() {
                     <input
                       type="checkbox"
                       checked={
-                        sorted.filter(isBundlable).length > 0 &&
-                        sorted.filter(isBundlable).every((d) => bundleIds.has(d.id))
+                        tableRows.filter(isBundlable).length > 0 &&
+                        tableRows.filter(isBundlable).every((d) => bundleIds.has(d.id))
                       }
                       onChange={(e) => {
                         if (e.target.checked) {
                           const next = new Set(bundleIds);
-                          sorted.filter(isBundlable).forEach((d) => next.add(d.id));
+                          tableRows.filter(isBundlable).forEach((d) => next.add(d.id));
                           setBundleIds(next);
                         } else {
                           clearBundle();
@@ -507,7 +526,7 @@ export function DispoDamagesPage() {
                     {hasAnyFilter ? 'Keine Treffer mit diesen Filtern.' : 'Noch keine Schäden erfasst.'}
                   </td></tr>
                 )}
-                {sorted.map((d) => {
+                {tableRows.map((d) => {
                   const checked = bundleIds.has(d.id);
                   const bundlable = isBundlable(d);
                   return (
@@ -556,13 +575,51 @@ export function DispoDamagesPage() {
           </div>
         </div>
 
-        {/* Karte */}
-        <div className="overflow-hidden rounded-xl border bg-white">
+        {/* Pagination-Controls */}
+        <div className="hidden md:flex items-center justify-between rounded-xl border bg-white px-4 py-2 text-sm">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span>Zeilen pro Seite:</span>
+            {[25, 50, 100].map((n) => (
+              <button
+                key={n}
+                onClick={() => { setPageSize(n); setPage(0); }}
+                className={`rounded px-2 py-0.5 text-xs ${pageSize === n ? 'bg-blue-600 text-white' : 'border hover:bg-slate-50'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-muted-foreground">
+              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} von {sorted.length}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="rounded border p-1 disabled:opacity-40 hover:bg-slate-50"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="text-xs">{page + 1} / {totalPages}</span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              className="rounded border p-1 disabled:opacity-40 hover:bg-slate-50"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        </div>{/* Ende linke Spalte */}
+
+        {/* Rechte Spalte: Karte */}
+        <div className="overflow-hidden rounded-xl border bg-white lg:col-span-2">
           <div className="border-b px-3 py-2 text-xs text-muted-foreground flex items-center gap-1.5">
             <FilterIcon className="h-3 w-3" />
             {filtered.length} Pin{filtered.length === 1 ? '' : 's'} sichtbar (synchron zur Liste)
           </div>
-          <div className="h-[520px]">
+          <div className="h-[600px]">
             <DamagesMap
               center={mapCenter}
               items={sorted.filter((d) => d.gps_lat != null && d.gps_lng != null)}

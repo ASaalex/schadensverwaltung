@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
+import { NetworkLayer } from './NetworkLayer';
 import { useMapLayers } from '@/hooks/useMapLayers';
+import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
 
 interface Props {
@@ -53,6 +55,7 @@ export function LeafletMap({
 }: Props) {
   const markerRef = useRef<L.Marker>(null);
   const { data: layers } = useMapLayers();
+  const { data: segments = [] } = useNetworkSegments();
 
   // GeoJSON-Koordinaten sind [lng, lat], Leaflet erwartet [lat, lng]
   const polygonLatLng = polygon ? polygon.map(([lng, lat]) => [lat, lng] as [number, number]) : null;
@@ -73,6 +76,7 @@ export function LeafletMap({
       <CenterUpdater center={center} />
       <ClickHandler onClick={onMapClick} />
       <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={showLayerSwitcher && zoomable} />
+      <NetworkLayer segments={segments} />
       {markerPosition && (
         <Marker
           position={markerPosition}
