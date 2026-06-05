@@ -12,10 +12,12 @@ interface Props {
 }
 
 export function ProtectedRoute({ children, allow }: Props) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, loading, profileLoading } = useAuth();
   const location = useLocation();
 
-  if (loading) return <LoadingSessionScreen />;
+  // loading = warte auf INITIAL_SESSION (sollte < 1s dauern)
+  // profileLoading = Profil wird noch aus DB/Cache geladen
+  if (loading || profileLoading) return <LoadingSessionScreen />;
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />;
   if (!profile) return <NoProfileScreen />;
 
