@@ -5,6 +5,8 @@ export interface RoadSegment {
   id: string;
   from_node: string;
   to_node: string;
+  from_node_id: string | null;
+  to_node_id:   string | null;
   /** Gültig ab (ISO-Datum) */
   gueltig_von: string | null;
   /** Gültig bis (ISO-Datum, null = unbegrenzt) */
@@ -38,7 +40,7 @@ export function useNetworkSegments() {
       const { data, error } = await (supabase as any)
         .from('road_segments')
         .select(
-          'id, from_node, to_node, name, length_m, road_class, ' +
+          'id, from_node, to_node, from_node_id, to_node_id, name, length_m, road_class, ' +
           'strassen_klasse_asb, strassen_nummer, abschnitts_nummer, ast_nummer, ' +
           'von_station, bis_station, gueltig_von, gueltig_bis, geometry, created_at, updated_at',
         )

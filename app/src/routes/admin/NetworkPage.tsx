@@ -2,205 +2,261 @@ import { useState, useEffect, useRef } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { ADMIN_SIDEBAR } from './sidebar';
+import { useNetworkNodes, type NetworkNode } from '@/hooks/useNetworkNodes';
 import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { NetworkMapEditor } from '@/components/map/NetworkMapEditor';
+import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
 import { lineLength, formatLength } from '@/lib/geoMeasure';
 import { formatStationAsb } from '@/lib/networkReferencing';
-import { Plus, Pencil, Trash2, Save, X, MapPin, RotateCcw, Info } from 'lucide-react';
+import {
+  Pencil, Trash2, Save, X, MapPin, Route,
+  Network, CheckCircle2,
+} from 'lucide-react';
 
-// ── ASB-Straßenklassen ────────────────────────────────────────────────────────
+// ── Konstanten ────────────────────────────────────────────────────────────────
 
 const ASB_KLASSEN: Record<string, string> = {
-  A:    'Autobahn (A)',
-  B:    'Bundesstraße (B)',
-  L:    'Landesstraße (L)',
-  K:    'Kreisstraße (K)',
-  St:   'Stadtstraße (St)',
-  Gem:  'Gemeindestraße (Gem)',
-  GV:   'Gemeindeverbindungsweg (GV)',
-  P:    'Privat-/Wirtschaftsweg (P)',
-  Rad:  'Radweg',
-  sonst:'Sonstige',
+  A: 'Autobahn (A)', B: 'Bundesstraße (B)', L: 'Landesstraße (L)',
+  K: 'Kreisstraße (K)', St: 'Stadtstraße (St)', Gem: 'Gemeindestraße (Gem)',
+  GV: 'Gemeindeverbindungsweg (GV)', P: 'Privat-/Wirtschaftsweg (P)',
+  Rad: 'Radweg', sonst: 'Sonstige',
 };
 
 const ASB_FARBEN: Record<string, string> = {
-  A:    'bg-red-100 text-red-700',
-  B:    'bg-orange-100 text-orange-700',
-  L:    'bg-yellow-100 text-yellow-700',
-  K:    'bg-green-100 text-green-700',
-  St:   'bg-sky-100 text-sky-700',
-  Gem:  'bg-indigo-100 text-indigo-700',
-  GV:   'bg-violet-100 text-violet-700',
-  P:    'bg-stone-100 text-stone-600',
-  Rad:  'bg-emerald-100 text-emerald-700',
-  sonst:'bg-slate-100 text-slate-600',
+  A: 'bg-red-100 text-red-700', B: 'bg-orange-100 text-orange-700',
+  L: 'bg-yellow-100 text-yellow-700', K: 'bg-green-100 text-green-700',
+  St: 'bg-sky-100 text-sky-700', Gem: 'bg-indigo-100 text-indigo-700',
+  GV: 'bg-violet-100 text-violet-700', P: 'bg-stone-100 text-stone-600',
+  Rad: 'bg-emerald-100 text-emerald-700', sonst: 'bg-slate-100 text-slate-600',
 };
-
-const ASB_DOTS: Record<string, string> = {
-  A:'bg-red-500', B:'bg-orange-500', L:'bg-yellow-500', K:'bg-green-500',
-  St:'bg-sky-500', Gem:'bg-indigo-500', GV:'bg-violet-500',
-  P:'bg-stone-500', Rad:'bg-emerald-500', sonst:'bg-slate-400',
-};
-
-// ── Form-State ────────────────────────────────────────────────────────────────
-
-interface FormState {
-  from_node:          string;
-  to_node:            string;
-  name:               string;
-  strassen_klasse_asb:string;
-  strassen_nummer:    string;
-  abschnitts_nummer:  string;
-  ast_nummer:         string;
-  von_station:        string;
-  length_m:           string;
-  gueltig_von:        string;
-  gueltig_bis:        string;
-  geometry:           number[][] | null;
-}
 
 const TODAY = new Date().toISOString().slice(0, 10);
+const DEFAULT_CENTER: [number, number] = [50.9787, 11.0328];
 
-const EMPTY: FormState = {
-  from_node: '', to_node: '', name: '',
-  strassen_klasse_asb: 'K', strassen_nummer: '',
+// ── Segment-Form ──────────────────────────────────────────────────────────────
+
+interface SegForm {
+  id?:                 string;
+  name:                string;
+  strassen_klasse_asb: string;
+  strassen_nummer:     string;
+  abschnitts_nummer:   string;
+  ast_nummer:          string;
+  von_station:         string;
+  length_m:            string;
+  gueltig_von:         string;
+  gueltig_bis:         string;
+}
+
+const EMPTY_SEG: SegForm = {
+  name: '', strassen_klasse_asb: 'K', strassen_nummer: '',
   abschnitts_nummer: '', ast_nummer: '0',
   von_station: '0', length_m: '',
   gueltig_von: TODAY, gueltig_bis: '',
-  geometry: null,
 };
 
-const DEFAULT_CENTER: [number, number] = [50.9787, 11.0328];
+// ── Hauptkomponente ───────────────────────────────────────────────────────────
 
-// ── Komponente ────────────────────────────────────────────────────────────────
+type PageTab = 'knoten' | 'abschnitte';
 
 export function AdminNetworkPage() {
-  const qc      = useQueryClient();
   const { profile } = useAuth();
-  const { data: segments = [], isLoading, error } = useNetworkSegments();
+  const qc = useQueryClient();
+  const { query: nodesQ, saveMut: nodeSave, deleteMut: nodeDel } = useNetworkNodes();
+  const { data: segments = [], isLoading: segLoading, error: segError } = useNetworkSegments();
+  const nodes: NetworkNode[] = nodesQ.data ?? [];
 
-  const [editId,       setEditId]       = useState<string | null>(null);
-  const [form,         setForm]         = useState<FormState>(EMPTY);
-  const [deleteId,     setDeleteId]     = useState<string | null>(null);
-  const [search,       setSearch]       = useState('');
-  const [filterDate,   setFilterDate]   = useState(TODAY); // Gültig-am Filter
-  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+  const [tab, setTab] = useState<PageTab>('knoten');
 
-  // Karten-Center
-  const mapCenter: [number, number] = form.geometry?.length
-    ? [form.geometry[0][1], form.geometry[0][0]]
-    : DEFAULT_CENTER;
+  // ─ Knoten-State ──────────────────────────────────────────────────────────
+  const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
+  const [nodeNameInput, setNodeNameInput] = useState('');
+  const [pendingNodePos, setPendingNodePos] = useState<{ lat: number; lng: number } | null>(null);
+  const nodeRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
-  // Länge + Bis-Station auto-berechnen
+  // ─ Abschnitt-State ───────────────────────────────────────────────────────
+  const [fromNodeId, setFromNodeId] = useState<string | null>(null);
+  const [toNodeId,   setToNodeId]   = useState<string | null>(null);
+  const [intermediate, setIntermediate] = useState<number[][]>([]);
+  const [segForm, setSegForm] = useState<SegForm>(EMPTY_SEG);
+  const [editSegId, setEditSegId] = useState<string | null>(null);
+  const [deleteSegId, setDeleteSegId] = useState<string | null>(null);
+  const [filterDate, setFilterDate] = useState(TODAY);
+  const [segSearch, setSegSearch] = useState('');
+  const segRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
+  // Karten-Center: bevorzuge Knoten-Mittelpunkt, sonst Default
+  const mapCenter: [number, number] = (() => {
+    if (selectedNode) return [selectedNode.lat, selectedNode.lng];
+    const fromN = nodes.find((n) => n.id === fromNodeId);
+    if (fromN) return [fromN.lat, fromN.lng];
+    if (nodes.length > 0) return [nodes[0].lat, nodes[0].lng];
+    return DEFAULT_CENTER;
+  })();
+
+  // Länge auto aus Geometrie + Von/Bis-Knoten
   useEffect(() => {
-    if (form.geometry && form.geometry.length >= 2) {
-      const m = Math.round(lineLength(form.geometry));
-      setForm((f) => ({ ...f, length_m: String(m) }));
-    }
-  }, [form.geometry]);
+    if (!fromNodeId || !toNodeId) return;
+    const fromN = nodes.find((n) => n.id === fromNodeId);
+    const toN   = nodes.find((n) => n.id === toNodeId);
+    if (!fromN || !toN) return;
+    const pts = [
+      [fromN.lng, fromN.lat],
+      ...intermediate,
+      [toN.lng, toN.lat],
+    ];
+    const m = Math.round(lineLength(pts));
+    setSegForm((f) => ({ ...f, length_m: String(m) }));
+  }, [fromNodeId, toNodeId, intermediate, nodes]);
 
-  const bisStation = form.von_station && form.length_m
-    ? parseFloat(form.von_station) + parseFloat(form.length_m)
-    : null;
+  // ─ Knoten-Aktionen ───────────────────────────────────────────────────────
 
-  function handleMapSegmentClick(id: string) {
-    const seg = segments.find((s) => s.id === id);
-    if (!seg) return;
-    loadSeg(seg);
-    // Zur Tabellenzeile scrollen
-    setTimeout(() => {
-      rowRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+  function handleAddNodeOnMap(lat: number, lng: number) {
+    setPendingNodePos({ lat, lng });
+    setNodeNameInput('');
   }
 
-  function loadSeg(seg: RoadSegment) {
-    setEditId(seg.id);
-    setForm({
-      from_node:           seg.from_node,
-      to_node:             seg.to_node,
-      name:                seg.name ?? '',
-      strassen_klasse_asb: seg.strassen_klasse_asb ?? 'K',
-      strassen_nummer:     seg.strassen_nummer ?? '',
-      abschnitts_nummer:   seg.abschnitts_nummer ?? '',
-      ast_nummer:          seg.ast_nummer ?? '0',
-      von_station:         seg.von_station != null ? String(seg.von_station) : '0',
-      length_m:            seg.length_m != null ? String(seg.length_m) : '',
-      gueltig_von:         seg.gueltig_von ?? TODAY,
-      gueltig_bis:         seg.gueltig_bis ?? '',
-      geometry:            seg.geometry?.coordinates ?? null,
+  function confirmAddNode() {
+    if (!nodeNameInput.trim() || !pendingNodePos) return;
+    nodeSave.mutate({ name: nodeNameInput.trim(), ...pendingNodePos }, {
+      onSuccess: () => { setPendingNodePos(null); setNodeNameInput(''); },
     });
   }
 
-  function reset() { setEditId(null); setForm(EMPTY); }
+  function handleMoveNode(id: string, lat: number, lng: number) {
+    nodeSave.mutate({ id, name: nodes.find((n) => n.id === id)!.name, lat, lng });
+  }
 
-  const saveMut = useMutation({
+  function handleSelectNode(node: NetworkNode | null) {
+    setSelectedNode(node);
+    if (node) {
+      setNodeNameInput(node.name);
+      setTimeout(() => nodeRowRefs.current.get(node.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    }
+  }
+
+  function handleRenameNode() {
+    if (!selectedNode || !nodeNameInput.trim()) return;
+    nodeSave.mutate({ ...selectedNode, name: nodeNameInput.trim() });
+  }
+
+  // ─ Abschnitt-Aktionen ────────────────────────────────────────────────────
+
+  function handleNodeClickForSegment(node: NetworkNode) {
+    if (!fromNodeId) {
+      setFromNodeId(node.id);
+    } else if (node.id === fromNodeId) {
+      // Von-Knoten nochmal klicken = abbrechen
+      resetSegment();
+    } else if (!toNodeId) {
+      setToNodeId(node.id);
+    }
+  }
+
+  function resetSegment() {
+    setFromNodeId(null); setToNodeId(null);
+    setIntermediate([]); setSegForm(EMPTY_SEG); setEditSegId(null);
+  }
+
+  function loadSegForEdit(seg: RoadSegment) {
+    setEditSegId(seg.id);
+    setFromNodeId(seg.from_node_id ?? null);
+    setToNodeId(seg.to_node_id ?? null);
+    // Geometry ohne Von/Bis-Knoten = nur Zwischenpunkte
+    const coords = seg.geometry?.coordinates ?? [];
+    const mid = coords.slice(1, coords.length - 1); // ohne ersten und letzten
+    setIntermediate(mid);
+    setSegForm({
+      id: seg.id,
+      name: seg.name ?? '',
+      strassen_klasse_asb: seg.strassen_klasse_asb ?? 'K',
+      strassen_nummer: seg.strassen_nummer ?? '',
+      abschnitts_nummer: seg.abschnitts_nummer ?? '',
+      ast_nummer: seg.ast_nummer ?? '0',
+      von_station: seg.von_station != null ? String(seg.von_station) : '0',
+      length_m: seg.length_m != null ? String(seg.length_m) : '',
+      gueltig_von: seg.gueltig_von ?? TODAY,
+      gueltig_bis: seg.gueltig_bis ?? '',
+    });
+    setTimeout(() => segRowRefs.current.get(seg.id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  }
+
+  const saveSegMut = useMutation({
     mutationFn: async () => {
-      const lenM   = form.length_m    ? parseFloat(form.length_m)    : null;
-      const vonSt  = form.von_station ? parseFloat(form.von_station) : 0;
+      const fromN = nodes.find((n) => n.id === fromNodeId);
+      const toN   = nodes.find((n) => n.id === toNodeId);
+      if (!fromN || !toN) throw new Error('Von- und Bis-Knoten auswählen');
+
+      const geomCoords = [
+        [fromN.lng, fromN.lat],
+        ...intermediate,
+        [toN.lng, toN.lat],
+      ];
+      const lenM  = parseFloat(segForm.length_m) || lineLength(geomCoords);
+      const vonSt = parseFloat(segForm.von_station) || 0;
+
       const payload = {
         company_id:          profile!.company_id,
-        from_node:           form.from_node.trim(),
-        to_node:             form.to_node.trim(),
-        name:                form.name.trim() || null,
-        strassen_klasse_asb: form.strassen_klasse_asb || null,
-        strassen_nummer:     form.strassen_nummer.trim() || null,
-        abschnitts_nummer:   form.abschnitts_nummer.trim() || null,
-        ast_nummer:          form.ast_nummer.trim() || '0',
+        from_node_id:        fromN.id,
+        to_node_id:          toN.id,
+        from_node:           fromN.name,
+        to_node:             toN.name,
+        name:                segForm.name.trim() || null,
+        strassen_klasse_asb: segForm.strassen_klasse_asb || null,
+        strassen_nummer:     segForm.strassen_nummer.trim() || null,
+        abschnitts_nummer:   segForm.abschnitts_nummer.trim() || null,
+        ast_nummer:          segForm.ast_nummer.trim() || '0',
         von_station:         vonSt,
-        bis_station:         lenM != null ? vonSt + lenM : null,
-        length_m:            lenM,
-        geometry:            form.geometry?.length
-          ? { type: 'LineString', coordinates: form.geometry }
-          : null,
-        gueltig_von:         form.gueltig_von || TODAY,
-        gueltig_bis:         form.gueltig_bis || null,
+        bis_station:         vonSt + lenM,
+        length_m:            Math.round(lenM),
+        gueltig_von:         segForm.gueltig_von || TODAY,
+        gueltig_bis:         segForm.gueltig_bis || null,
+        geometry:            { type: 'LineString', coordinates: geomCoords },
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tbl = (supabase as any).from('road_segments');
-      const { error: e } = editId
-        ? await tbl.update(payload).eq('id', editId)
+      const { error } = editSegId
+        ? await tbl.update(payload).eq('id', editSegId)
         : await tbl.insert(payload);
-      if (e) throw e;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['road-segments'] }); reset(); },
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: async (id: string) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: e } = await (supabase as any).from('road_segments').delete().eq('id', id);
-      if (e) throw e;
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['road-segments'] });
-      if (editId === deleteId) reset();
-      setDeleteId(null);
+      resetSegment();
     },
   });
 
-  const canSave = !!form.from_node.trim() && !!form.to_node.trim();
+  const deleteSegMut = useMutation({
+    mutationFn: async (id: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from('road_segments').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['road-segments'] });
+      if (editSegId === deleteSegId) resetSegment();
+      setDeleteSegId(null);
+    },
+  });
 
-  const geoStats = form.geometry?.length
-    ? {
-        points: form.geometry.length,
-        length: formatLength(lineLength(form.geometry)),
-        start:  form.geometry[0],
-        end:    form.geometry[form.geometry.length - 1],
-      }
-    : null;
-
-  const filtered = segments.filter((s) => {
-    // Gültigkeitsfilter
+  // Gefilterte Segmente
+  const filteredSegs = segments.filter((s) => {
     if (s.gueltig_von && s.gueltig_von > filterDate) return false;
     if (s.gueltig_bis && s.gueltig_bis < filterDate) return false;
-    // Textsuche
-    const q = search.trim().toLowerCase();
+    const q = segSearch.trim().toLowerCase();
     if (!q) return true;
     return [s.from_node, s.to_node, s.name, s.strassen_nummer, s.abschnitts_nummer, s.strassen_klasse_asb]
       .filter(Boolean).join(' ').toLowerCase().includes(q);
   });
+
+  const fromNode = nodes.find((n) => n.id === fromNodeId);
+  const toNode   = nodes.find((n) => n.id === toNodeId);
+  const bisStation = segForm.von_station && segForm.length_m
+    ? parseFloat(segForm.von_station) + parseFloat(segForm.length_m)
+    : null;
+
+  const canSaveSeg = !!fromNodeId && !!toNodeId;
 
   // ─ Render ─────────────────────────────────────────────────────────────────
   return (
@@ -210,367 +266,399 @@ export function AdminNetworkPage() {
         <div>
           <h2 className="text-2xl font-semibold">Straßennetz</h2>
           <p className="text-sm text-muted-foreground">
-            {segments.length} Abschnitte nach ASB ·{' '}
-            {editId ? 'Abschnitt bearbeiten' : 'Neuen Abschnitt anlegen'}
+            {nodes.length} Netzknoten · {segments.length} Abschnitte
           </p>
         </div>
-        {editId && (
-          <button onClick={reset} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-slate-50">
-            <Plus className="h-4 w-4" /> Neuer Abschnitt
-          </button>
-        )}
       </div>
 
-      {/* Split: Formular + Karte */}
-      <div className="mb-4 flex gap-4" style={{ height: 560 }}>
-
-        {/* ── Formular ── */}
-        <div className="flex w-96 flex-shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-white p-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <MapPin className="h-4 w-4 text-blue-500" />
-            {editId ? 'Abschnitt bearbeiten' : 'Neuer ASB-Abschnitt'}
-          </div>
-
-          <div className="flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
-            <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-            <span>
-              Linie auf der Karte zeichnen. Blaue Knoten-Marker → Snap auf bestehenden Netzknoten.
-              Länge und Bis-Station werden automatisch berechnet.
-            </span>
-          </div>
-
-          {/* Geo-Statistik */}
-          {geoStats && (
-            <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs">
-              <div className="mb-1 font-medium text-slate-600">Bestandsachse</div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-slate-500">
-                <span>Stützpunkte:</span><span className="font-mono">{geoStats.points}</span>
-                <span>Länge:</span><span className="font-mono text-emerald-600">{geoStats.length}</span>
-                <span>Start (A):</span>
-                <span className="font-mono text-[10px]">{geoStats.start[1].toFixed(6)}, {geoStats.start[0].toFixed(6)}</span>
-                <span>Ende (B):</span>
-                <span className="font-mono text-[10px]">{geoStats.end[1].toFixed(6)}, {geoStats.end[0].toFixed(6)}</span>
-              </div>
-            </div>
-          )}
-
-          <hr />
-
-          {/* Netzknoten */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white">A</span>
-                Von Knoten *
-              </label>
-              <input value={form.from_node}
-                onChange={(e) => setForm((f) => ({ ...f, from_node: e.target.value }))}
-                placeholder="NK-Nummer"
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                <span className="mr-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">B</span>
-                Bis Knoten *
-              </label>
-              <input value={form.to_node}
-                onChange={(e) => setForm((f) => ({ ...f, to_node: e.target.value }))}
-                placeholder="NK-Nummer"
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-          </div>
-
-          {/* ASB: Klasse + Straßennummer */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Straßenklasse (ASB) *</label>
-              <select value={form.strassen_klasse_asb}
-                onChange={(e) => setForm((f) => ({ ...f, strassen_klasse_asb: e.target.value }))}
-                className="w-full rounded-lg border px-2 py-1.5 text-sm">
-                {Object.entries(ASB_KLASSEN).map(([k, label]) => (
-                  <option key={k} value={k}>{label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Straßennummer</label>
-              <input value={form.strassen_nummer}
-                onChange={(e) => setForm((f) => ({ ...f, strassen_nummer: e.target.value }))}
-                placeholder="z. B. K 12, L 1036"
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-          </div>
-
-          {/* Straßenname */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">Straßenname</label>
-            <input value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="z. B. Hauptstraße"
-              className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-          </div>
-
-          {/* ASB: Abschnitt + Ast */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Abschnittsnummer</label>
-              <input value={form.abschnitts_nummer}
-                onChange={(e) => setForm((f) => ({ ...f, abschnitts_nummer: e.target.value }))}
-                placeholder="z. B. 100"
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Ast-Nummer</label>
-              <input value={form.ast_nummer}
-                onChange={(e) => setForm((f) => ({ ...f, ast_nummer: e.target.value }))}
-                placeholder="0"
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-          </div>
-
-          {/* Stationierung */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">Von-Station (m)</label>
-              <input type="number" min="0" step="1" value={form.von_station}
-                onChange={(e) => setForm((f) => ({ ...f, von_station: e.target.value }))}
-                className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
-                Bis-Station (m)
-                {bisStation != null && <span className="ml-1 text-emerald-600">auto</span>}
-              </label>
-              <input type="number" readOnly
-                value={bisStation != null ? bisStation : ''}
-                placeholder="auto"
-                className="w-full rounded-lg border bg-slate-50 px-2 py-1.5 text-sm text-slate-500" />
-            </div>
-          </div>
-
-          {/* Länge */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-700">
-              Länge (m)
-              {geoStats && <span className="ml-1 text-emerald-600">· auto aus Geometrie</span>}
-            </label>
-            <input type="number" min="0" step="1" value={form.length_m}
-              onChange={(e) => setForm((f) => ({ ...f, length_m: e.target.value }))}
-              placeholder="z. B. 350"
-              className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-          </div>
-
-          {/* ASB-Stationsformat-Preview */}
-          {form.von_station && form.length_m && (
-            <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              ASB-Stationierung:{' '}
-              <span className="font-mono text-slate-700">
-                {formatStationAsb(parseFloat(form.von_station))}
-              </span>
-              {' '}–{' '}
-              <span className="font-mono text-slate-700">
-                {formatStationAsb(parseFloat(form.von_station) + parseFloat(form.length_m))}
-              </span>
-              {' '}m
-            </div>
-          )}
-
-          {/* Gültigkeitszeitraum */}
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-700">Gültigkeitszeitraum</label>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="mb-0.5 block text-[11px] text-slate-500">Gültig von</label>
-                <input type="date" value={form.gueltig_von}
-                  onChange={(e) => setForm((f) => ({ ...f, gueltig_von: e.target.value }))}
-                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="mb-0.5 block text-[11px] text-slate-500">Gültig bis (leer = unbegrenzt)</label>
-                <input type="date" value={form.gueltig_bis}
-                  onChange={(e) => setForm((f) => ({ ...f, gueltig_bis: e.target.value }))}
-                  min={form.gueltig_von}
-                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
-              </div>
-            </div>
-          </div>
-
-          {/* Linie löschen */}
-          {form.geometry && (
-            <button type="button"
-              onClick={() => setForm((f) => ({ ...f, geometry: null }))}
-              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700">
-              <RotateCcw className="h-3 w-3" /> Linie löschen und neu zeichnen
-            </button>
-          )}
-
-          <div className="flex-1" />
-
-          {/* Save */}
-          <div className="space-y-2">
-            {saveMut.isError && (
-              <p className="text-xs text-red-600">{(saveMut.error as Error).message}</p>
-            )}
-            <button onClick={() => saveMut.mutate()} disabled={!canSave || saveMut.isPending}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              <Save className="h-4 w-4" />
-              {saveMut.isPending ? 'Speichern …' : editId ? 'Änderungen speichern' : 'Abschnitt anlegen'}
-            </button>
-            {editId && (
-              <button onClick={reset}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">
-                <X className="h-4 w-4" /> Abbrechen
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── Karte ── */}
-        <div className="relative flex-1 overflow-hidden rounded-xl border">
-          <NetworkMapEditor
-            center={mapCenter} zoom={14}
-            points={form.geometry ?? []}
-            onChange={(pts) => setForm((f) => ({ ...f, geometry: pts.length > 0 ? pts : null }))}
-            segments={filtered}
-            onSegmentClick={handleMapSegmentClick}
-            selectedSegmentId={editId}
-            onNodeSnap={(name, _coords, isStart) => {
-              if (isStart) setForm((f) => ({ ...f, from_node: f.from_node || name }));
-              else         setForm((f) => ({ ...f, to_node: name }));
-            }}
-          />
-        </div>
+      {/* Tabs */}
+      <div className="mb-4 flex gap-1 rounded-xl border bg-white p-1 w-fit">
+        <button onClick={() => setTab('knoten')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'knoten' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+          <Network className="h-4 w-4" /> Netzknoten ({nodes.length})
+        </button>
+        <button onClick={() => setTab('abschnitte')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'abschnitte' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+          <Route className="h-4 w-4" /> Abschnitte ({segments.length})
+        </button>
       </div>
 
-      {/* Tabelle */}
-      <div className="rounded-xl border bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-          <h3 className="font-medium">
-            Abschnitte ({filtered.length}
-            {filtered.length !== segments.length && <span className="text-muted-foreground"> von {segments.length}</span>})
-          </h3>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <label className="text-xs text-muted-foreground whitespace-nowrap">Gültig am</label>
-              <input type="date" value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="rounded-lg border px-2 py-1.5 text-sm" />
-              <button onClick={() => setFilterDate(TODAY)}
-                className="text-xs text-blue-600 underline whitespace-nowrap">Heute</button>
+      {/* ════════ TAB: KNOTEN ════════ */}
+      {tab === 'knoten' && (
+        <div className="flex gap-4" style={{ height: 560 }}>
+
+          {/* Panel */}
+          <div className="flex w-80 flex-shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-white p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <MapPin className="h-4 w-4 text-blue-500" /> Netzknoten
             </div>
-            <input value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Suche …"
-              className="rounded-lg border px-3 py-1.5 text-sm w-56" />
-          </div>
-        </div>
 
-        {/* Legende */}
-        <div className="flex flex-wrap gap-2 border-b px-4 py-2">
-          {Object.entries(ASB_KLASSEN).map(([k]) => (
-            <span key={k} className="flex items-center gap-1 text-xs">
-              <span className={`h-2.5 w-2.5 rounded-full ${ASB_DOTS[k]}`} />
-              <span className="text-muted-foreground">{k}</span>
-            </span>
-          ))}
-        </div>
+            <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
+              Aktiviere <b>„Knoten setzen"</b> in der Karte und klicke auf die gewünschte Position.
+              Bestehende Knoten können gezogen werden.
+            </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 text-left">Klasse</th>
-                <th className="px-3 py-2 text-left">Str.-Nr.</th>
-                <th className="px-3 py-2 text-left">Name</th>
-                <th className="px-3 py-2 text-left">Abschn./Ast</th>
-                <th className="px-3 py-2 text-left">Von Knoten</th>
-                <th className="px-3 py-2 text-left">Bis Knoten</th>
-                <th className="px-3 py-2 text-right">Station von–bis</th>
-                <th className="px-3 py-2 text-right">Länge</th>
-                <th className="px-3 py-2 text-center">Geo.</th>
-                <th className="px-3 py-2 text-left">Gültig von–bis</th>
-                <th className="px-3 py-2 text-right">Akt.</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {isLoading && <tr><td colSpan={10} className="px-4 py-6 text-center text-muted-foreground">Lade …</td></tr>}
-              {error    && <tr><td colSpan={10} className="px-4 py-6 text-center text-red-600">{(error as Error).message}</td></tr>}
-              {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                  {search ? 'Keine Treffer.' : 'Noch keine Abschnitte angelegt.'}
-                </td></tr>
+            {/* Pending Node — Name eingeben */}
+            {pendingNodePos && (
+              <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3">
+                <div className="mb-2 text-xs font-semibold text-emerald-700">Neuer Knoten</div>
+                <div className="text-xs text-emerald-600 mb-2">
+                  Position: {pendingNodePos.lat.toFixed(6)}, {pendingNodePos.lng.toFixed(6)}
+                </div>
+                <input
+                  autoFocus
+                  value={nodeNameInput}
+                  onChange={(e) => setNodeNameInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmAddNode()}
+                  placeholder="Knotenname, z. B. NK-101"
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm mb-2"
+                />
+                <div className="flex gap-2">
+                  <button onClick={confirmAddNode} disabled={!nodeNameInput.trim() || nodeSave.isPending}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Anlegen
+                  </button>
+                  <button onClick={() => setPendingNodePos(null)}
+                    className="rounded-lg border px-2 py-1.5 text-xs hover:bg-slate-50">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Ausgewählter Knoten */}
+            {selectedNode && !pendingNodePos && (
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold text-slate-600">Knoten bearbeiten</div>
+                <input value={nodeNameInput}
+                  onChange={(e) => setNodeNameInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleRenameNode()}
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm mb-2"
+                />
+                <div className="flex gap-2">
+                  <button onClick={handleRenameNode} disabled={!nodeNameInput.trim() || nodeSave.isPending}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-2 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    <Save className="h-3.5 w-3.5" /> Umbenennen
+                  </button>
+                  <button onClick={() => nodeDel.mutate(selectedNode.id, { onSuccess: () => setSelectedNode(null) })}
+                    disabled={nodeDel.isPending}
+                    className="rounded-lg border border-red-200 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => { setSelectedNode(null); setNodeNameInput(''); }}
+                    className="rounded-lg border px-2 py-1.5 text-xs hover:bg-slate-50">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="mt-2 text-[11px] text-slate-400">
+                  {selectedNode.lat.toFixed(6)}, {selectedNode.lng.toFixed(6)}
+                </div>
+              </div>
+            )}
+
+            <hr />
+
+            {/* Knoten-Liste */}
+            <div className="text-xs font-medium text-slate-500">{nodes.length} Knoten</div>
+            <div className="flex-1 overflow-y-auto space-y-0.5">
+              {nodes.length === 0 && (
+                <div className="py-4 text-center text-xs text-muted-foreground">
+                  Noch keine Knoten. Karte: „Knoten setzen" aktivieren.
+                </div>
               )}
-              {filtered.map((seg) => (
-                <tr key={seg.id}
-                  ref={(el) => { if (el) rowRefs.current.set(seg.id, el); else rowRefs.current.delete(seg.id); }}
-                  className={`cursor-pointer hover:bg-slate-50 ${editId === seg.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : ''}`}
-                  onClick={() => loadSeg(seg)}>
-                  <td className="px-3 py-2">
-                    {seg.strassen_klasse_asb ? (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ASB_FARBEN[seg.strassen_klasse_asb] ?? 'bg-slate-100'}`}>
-                        {seg.strassen_klasse_asb}
-                      </span>
-                    ) : <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{seg.strassen_nummer ?? '—'}</td>
-                  <td className="px-3 py-2">{seg.name ?? <span className="text-muted-foreground">—</span>}</td>
-                  <td className="px-3 py-2 font-mono text-xs">
-                    {seg.abschnitts_nummer ?? '—'}
-                    {seg.ast_nummer && seg.ast_nummer !== '0' && <span className="text-muted-foreground">/{seg.ast_nummer}</span>}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-xs">{seg.from_node}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{seg.to_node}</td>
-                  <td className="px-3 py-2 text-right font-mono text-xs tabular-nums">
-                    {seg.von_station != null
-                      ? <>{formatStationAsb(seg.von_station)} – {seg.bis_station != null ? formatStationAsb(seg.bis_station) : '?'}</>
-                      : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {seg.length_m != null ? formatLength(seg.length_m) : '—'}
-                  </td>
-                  <td className="px-3 py-2 text-center">
-                    {seg.geometry
-                      ? <span className="text-xs text-emerald-600">✓ {seg.geometry.coordinates.length}</span>
-                      : <span className="text-xs text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-3 py-2 text-xs tabular-nums">
-                    <span className="text-slate-600">{seg.gueltig_von ?? '—'}</span>
-                    {' '}–{' '}
-                    <span className={seg.gueltig_bis ? 'text-slate-600' : 'text-emerald-600'}>
-                      {seg.gueltig_bis ?? '∞'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => loadSeg(seg)}
-                        className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => setDeleteId(seg.id)}
-                        className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
+              {nodes.map((n) => (
+                <div key={n.id}
+                  ref={(el) => { if (el) nodeRowRefs.current.set(n.id, el as unknown as HTMLTableRowElement); }}
+                  onClick={() => handleSelectNode(n)}
+                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50 ${selectedNode?.id === n.id ? 'bg-blue-50 font-medium text-blue-700' : ''}`}>
+                  <span className="font-mono">{n.name}</span>
+                  <span className="text-slate-400">{n.lat.toFixed(4)}, {n.lng.toFixed(4)}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          {/* Karte */}
+          <div className="relative flex-1 overflow-hidden rounded-xl border">
+            <NetworkEditorMap
+              center={mapCenter} zoom={14} mode="nodes"
+              nodes={nodes} segments={segments}
+              onAddNode={handleAddNodeOnMap}
+              onMoveNode={handleMoveNode}
+              onSelectNode={handleSelectNode}
+              selectedNodeId={selectedNode?.id}
+              fromNodeId={null} toNodeId={null}
+              onNodeClickForSegment={() => {}}
+              intermediatePoints={[]}
+              onIntermediateChange={() => {}}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ════════ TAB: ABSCHNITTE ════════ */}
+      {tab === 'abschnitte' && (
+        <>
+          <div className="mb-4 flex gap-4" style={{ height: 560 }}>
+
+            {/* Panel */}
+            <div className="flex w-96 flex-shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-white p-4">
+
+              {/* Von/Bis-Auswahl Status */}
+              <div className="rounded-lg border bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-semibold text-slate-600">Knotenauswahl</div>
+                <div className="space-y-1.5 text-xs">
+                  <div className={`flex items-center gap-2 rounded px-2 py-1.5 ${fromNode ? 'bg-emerald-50 text-emerald-800' : 'text-slate-400'}`}>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-white flex-shrink-0">A</span>
+                    {fromNode ? <span className="font-mono font-medium">{fromNode.name}</span> : <span>Von-Knoten anklicken …</span>}
+                    {fromNode && <button onClick={resetSegment} className="ml-auto text-slate-400 hover:text-slate-600"><X className="h-3 w-3" /></button>}
+                  </div>
+                  <div className={`flex items-center gap-2 rounded px-2 py-1.5 ${toNode ? 'bg-red-50 text-red-800' : 'text-slate-400'}`}>
+                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white flex-shrink-0">B</span>
+                    {toNode ? <span className="font-mono font-medium">{toNode.name}</span> : <span>Bis-Knoten anklicken …</span>}
+                  </div>
+                </div>
+                {fromNode && toNode && (
+                  <div className="mt-2 text-[11px] text-slate-500">
+                    {intermediate.length > 0 ? `${intermediate.length} Zwischenpunkt${intermediate.length > 1 ? 'e' : ''}` : 'Gerade Linie'} ·{' '}
+                    {segForm.length_m ? formatLength(parseFloat(segForm.length_m)) : '?'}
+                  </div>
+                )}
+              </div>
+
+              {canSaveSeg && (
+                <>
+                  {/* Straßenklasse + Nummer */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Straßenklasse *</label>
+                      <select value={segForm.strassen_klasse_asb}
+                        onChange={(e) => setSegForm((f) => ({ ...f, strassen_klasse_asb: e.target.value }))}
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm">
+                        {Object.entries(ASB_KLASSEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Straßennummer</label>
+                      <input value={segForm.strassen_nummer}
+                        onChange={(e) => setSegForm((f) => ({ ...f, strassen_nummer: e.target.value }))}
+                        placeholder="K 12, L 1036"
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+
+                  {/* Straßenname */}
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">Straßenname</label>
+                    <input value={segForm.name}
+                      onChange={(e) => setSegForm((f) => ({ ...f, name: e.target.value }))}
+                      placeholder="z. B. Hauptstraße"
+                      className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                  </div>
+
+                  {/* Abschnitt + Ast */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Abschnittsnr.</label>
+                      <input value={segForm.abschnitts_nummer}
+                        onChange={(e) => setSegForm((f) => ({ ...f, abschnitts_nummer: e.target.value }))}
+                        placeholder="100"
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Ast-Nr.</label>
+                      <input value={segForm.ast_nummer}
+                        onChange={(e) => setSegForm((f) => ({ ...f, ast_nummer: e.target.value }))}
+                        placeholder="0"
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+
+                  {/* Stationierung */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Von-Station (m)</label>
+                      <input type="number" min="0" value={segForm.von_station}
+                        onChange={(e) => setSegForm((f) => ({ ...f, von_station: e.target.value }))}
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Länge (m) <span className="text-emerald-600">auto</span></label>
+                      <input type="number" value={segForm.length_m}
+                        onChange={(e) => setSegForm((f) => ({ ...f, length_m: e.target.value }))}
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+
+                  {/* Stationsvorschau */}
+                  {bisStation != null && (
+                    <div className="rounded bg-slate-50 px-2 py-1.5 text-[11px] text-slate-500">
+                      ASB: <span className="font-mono text-slate-700">{formatStationAsb(parseFloat(segForm.von_station || '0'))}</span>
+                      {' '}–{' '}
+                      <span className="font-mono text-slate-700">{formatStationAsb(bisStation)}</span> m
+                    </div>
+                  )}
+
+                  {/* Gültigkeit */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Gültig von</label>
+                      <input type="date" value={segForm.gueltig_von}
+                        onChange={(e) => setSegForm((f) => ({ ...f, gueltig_von: e.target.value }))}
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Gültig bis (∞)</label>
+                      <input type="date" value={segForm.gueltig_bis}
+                        onChange={(e) => setSegForm((f) => ({ ...f, gueltig_bis: e.target.value }))}
+                        min={segForm.gueltig_von}
+                        className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="flex-1" />
+
+                  {/* Save */}
+                  <div className="space-y-2">
+                    {saveSegMut.isError && (
+                      <p className="text-xs text-red-600">{(saveSegMut.error as Error).message}</p>
+                    )}
+                    <button onClick={() => saveSegMut.mutate()} disabled={saveSegMut.isPending}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                      <Save className="h-4 w-4" />
+                      {saveSegMut.isPending ? 'Speichern …' : editSegId ? 'Änderungen speichern' : 'Abschnitt anlegen'}
+                    </button>
+                    <button onClick={resetSegment}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">
+                      <X className="h-4 w-4" /> Abbrechen
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {!fromNode && (
+                <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground text-center px-4">
+                  Klicke in der Karte auf <b className="mx-1">Knoten A</b>, dann auf <b className="mx-1">Knoten B</b>, um einen Abschnitt zu zeichnen.
+                </div>
+              )}
+            </div>
+
+            {/* Karte */}
+            <div className="relative flex-1 overflow-hidden rounded-xl border">
+              <NetworkEditorMap
+                center={mapCenter} zoom={14} mode="segments"
+                nodes={nodes} segments={filteredSegs}
+                onAddNode={() => {}}
+                onMoveNode={() => {}}
+                onSelectNode={() => {}}
+                fromNodeId={fromNodeId} toNodeId={toNodeId}
+                onNodeClickForSegment={handleNodeClickForSegment}
+                intermediatePoints={intermediate}
+                onIntermediateChange={setIntermediate}
+                selectedSegmentId={editSegId}
+                onSegmentClick={(id) => {
+                  const seg = segments.find((s) => s.id === id);
+                  if (seg) loadSegForEdit(seg);
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Abschnitte-Tabelle */}
+          <div className="rounded-xl border bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+              <h3 className="font-medium">Abschnitte ({filteredSegs.length} von {segments.length})</h3>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <label className="text-xs text-muted-foreground whitespace-nowrap">Gültig am</label>
+                  <input type="date" value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="rounded-lg border px-2 py-1.5 text-sm" />
+                  <button onClick={() => setFilterDate(TODAY)} className="text-xs text-blue-600 underline">Heute</button>
+                </div>
+                <input value={segSearch} onChange={(e) => setSegSearch(e.target.value)}
+                  placeholder="Suche …" className="rounded-lg border px-3 py-1.5 text-sm w-52" />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Klasse</th>
+                    <th className="px-3 py-2 text-left">Str.-Nr.</th>
+                    <th className="px-3 py-2 text-left">Name</th>
+                    <th className="px-3 py-2 text-left">Von Knoten</th>
+                    <th className="px-3 py-2 text-left">Bis Knoten</th>
+                    <th className="px-3 py-2 text-right">Station</th>
+                    <th className="px-3 py-2 text-right">Länge</th>
+                    <th className="px-3 py-2 text-left">Gültig</th>
+                    <th className="px-3 py-2 text-right">Akt.</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {segLoading && <tr><td colSpan={9} className="px-4 py-6 text-center text-muted-foreground">Lade …</td></tr>}
+                  {segError && <tr><td colSpan={9} className="px-4 py-6 text-center text-red-600">{(segError as Error).message}</td></tr>}
+                  {!segLoading && filteredSegs.length === 0 && (
+                    <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                      {segSearch ? 'Keine Treffer.' : 'Noch keine Abschnitte. Oben Knoten A→B wählen.'}
+                    </td></tr>
+                  )}
+                  {filteredSegs.map((seg) => (
+                    <tr key={seg.id}
+                      ref={(el) => { if (el) segRowRefs.current.set(seg.id, el); else segRowRefs.current.delete(seg.id); }}
+                      className={`cursor-pointer hover:bg-slate-50 ${editSegId === seg.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : ''}`}
+                      onClick={() => loadSegForEdit(seg)}>
+                      <td className="px-3 py-2">
+                        {seg.strassen_klasse_asb
+                          ? <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ASB_FARBEN[seg.strassen_klasse_asb] ?? 'bg-slate-100'}`}>{seg.strassen_klasse_asb}</span>
+                          : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{seg.strassen_nummer ?? '—'}</td>
+                      <td className="px-3 py-2">{seg.name ?? <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-emerald-700">{seg.from_node}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-red-700">{seg.to_node}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">
+                        {seg.von_station != null ? formatStationAsb(seg.von_station) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{seg.length_m != null ? formatLength(seg.length_m) : '—'}</td>
+                      <td className="px-3 py-2 text-xs">
+                        <span className="text-slate-500">{seg.gueltig_von ?? '—'}</span>
+                        {' – '}
+                        <span className={seg.gueltig_bis ? 'text-slate-500' : 'text-emerald-600'}>{seg.gueltig_bis ?? '∞'}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => loadSegForEdit(seg)}
+                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => setDeleteSegId(seg.id)}
+                            className="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Löschen-Dialog */}
-      {deleteId && (
+      {deleteSegId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="mb-2 text-lg font-semibold">Abschnitt löschen?</h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Der Abschnitt wird unwiderruflich gelöscht. Schäden verlieren die Netzreferenz.
-            </p>
+            <h3 className="mb-2 font-semibold">Abschnitt löschen?</h3>
+            <p className="mb-6 text-sm text-muted-foreground">Schäden verlieren die Netzreferenz zu diesem Abschnitt.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeleteId(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
-              <button onClick={() => deleteMut.mutate(deleteId)} disabled={deleteMut.isPending}
+              <button onClick={() => setDeleteSegId(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
+              <button onClick={() => deleteSegMut.mutate(deleteSegId)} disabled={deleteSegMut.isPending}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                {deleteMut.isPending ? 'Lösche …' : 'Löschen'}
+                {deleteSegMut.isPending ? 'Lösche …' : 'Löschen'}
               </button>
             </div>
           </div>
