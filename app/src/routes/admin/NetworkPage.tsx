@@ -4,14 +4,16 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ADMIN_SIDEBAR } from './sidebar';
 import { useNetworkNodes, type NetworkNode } from '@/hooks/useNetworkNodes';
 import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments';
+import { useNetworkAreas, AREA_TYPE_LABELS, AREA_TYPE_COLORS } from '@/hooks/useNetworkAreas';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
-import { lineLength, formatLength } from '@/lib/geoMeasure';
+import { GeometryDrawer } from '@/components/map/GeometryDrawer';
+import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 import { formatStationAsb } from '@/lib/networkReferencing';
 import {
   Pencil, Trash2, Save, X, MapPin, Route,
-  Network, CheckCircle2,
+  Network, CheckCircle2, Layers,
 } from 'lucide-react';
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
@@ -58,16 +60,25 @@ const EMPTY_SEG: SegForm = {
 
 // ── Hauptkomponente ───────────────────────────────────────────────────────────
 
-type PageTab = 'knoten' | 'abschnitte';
+type PageTab = 'knoten' | 'abschnitte' | 'flaechen';
 
 export function AdminNetworkPage() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   const { query: nodesQ, saveMut: nodeSave, deleteMut: nodeDel } = useNetworkNodes();
   const { data: segments = [], isLoading: segLoading, error: segError } = useNetworkSegments();
+  const { query: areasQ, saveMut: areaSave, deleteMut: areaDel } = useNetworkAreas();
   const nodes: NetworkNode[] = nodesQ.data ?? [];
 
   const [tab, setTab] = useState<PageTab>('knoten');
+
+  // ─ Flächen-State ─────────────────────────────────────────────────────────
+  const areas = areasQ.data ?? [];
+  const [areaForm, setAreaForm] = useState({
+    id: '', name: '', area_type: 'park', gueltig_von: TODAY, gueltig_bis: '',
+  });
+  const [areaPoints, setAreaPoints] = useState<number[][]>([]); // [lng,lat][]
+  const [deleteAreaId, setDeleteAreaId] = useState<string | null>(null);
 
   // ─ Knoten-State ──────────────────────────────────────────────────────────
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
@@ -266,7 +277,7 @@ export function AdminNetworkPage() {
         <div>
           <h2 className="text-2xl font-semibold">Straßennetz</h2>
           <p className="text-sm text-muted-foreground">
-            {nodes.length} Netzknoten · {segments.length} Abschnitte
+            {nodes.length} Netzknoten · {segments.length} Abschnitte · {areas.length} Flächen
           </p>
         </div>
       </div>
@@ -280,6 +291,10 @@ export function AdminNetworkPage() {
         <button onClick={() => setTab('abschnitte')}
           className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'abschnitte' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
           <Route className="h-4 w-4" /> Abschnitte ({segments.length})
+        </button>
+        <button onClick={() => setTab('flaechen')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'flaechen' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+          <Layers className="h-4 w-4" /> Flächen ({areas.length})
         </button>
       </div>
 
@@ -648,9 +663,178 @@ export function AdminNetworkPage() {
         </>
       )}
 
-      {/* Löschen-Dialog */}
+      {/* ════════ TAB: FLÄCHEN ════════ */}
+      {tab === 'flaechen' && (
+        <div className="flex gap-4" style={{ height: 560 }}>
+
+          {/* Panel */}
+          <div className="flex w-80 flex-shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-white p-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Layers className="h-4 w-4 text-blue-500" /> Fläche anlegen / bearbeiten
+            </div>
+
+            <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
+              Aktiviere <b>„Zeichnen"</b> in der Karte, umfahre die Fläche und fülle die Attribute aus.
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Name *</label>
+              <input value={areaForm.name}
+                onChange={(e) => setAreaForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="z. B. Stadtpark Erfurt"
+                className="w-full rounded-lg border px-3 py-2 text-sm" />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Flächentyp</label>
+              <select value={areaForm.area_type}
+                onChange={(e) => setAreaForm((f) => ({ ...f, area_type: e.target.value }))}
+                className="w-full rounded-lg border px-3 py-2 text-sm">
+                {Object.entries(AREA_TYPE_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+              {/* Farbvorschau */}
+              <div className="mt-1.5 flex items-center gap-2 text-xs">
+                <span className="h-3 w-3 rounded-sm border"
+                  style={{ background: AREA_TYPE_COLORS[areaForm.area_type]?.fill, borderColor: AREA_TYPE_COLORS[areaForm.area_type]?.border }} />
+                <span className="text-muted-foreground">Kartenfarbe</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Gültig von</label>
+                <input type="date" value={areaForm.gueltig_von}
+                  onChange={(e) => setAreaForm((f) => ({ ...f, gueltig_von: e.target.value }))}
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Gültig bis (∞)</label>
+                <input type="date" value={areaForm.gueltig_bis}
+                  onChange={(e) => setAreaForm((f) => ({ ...f, gueltig_bis: e.target.value }))}
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+
+            {/* Flächen-Statistik */}
+            {areaPoints.length >= 3 && (
+              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                <div className="font-medium mb-1">Gezeichnete Fläche</div>
+                <div className="grid grid-cols-2 gap-x-2">
+                  <span>Punkte:</span><span className="font-mono">{areaPoints.length}</span>
+                  <span>Fläche:</span><span className="font-mono text-emerald-600">{formatArea(polygonArea(areaPoints))}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1" />
+
+            {areaSave.isError && (
+              <p className="text-xs text-red-600">{(areaSave.error as Error).message}</p>
+            )}
+            <button
+              onClick={() => {
+                if (!areaForm.name.trim() || areaPoints.length < 3) return;
+                const coords = [...areaPoints, areaPoints[0]]; // Ring schließen
+                areaSave.mutate({
+                  id: areaForm.id || undefined,
+                  name: areaForm.name.trim(),
+                  area_type: areaForm.area_type,
+                  gueltig_von: areaForm.gueltig_von || TODAY,
+                  gueltig_bis: areaForm.gueltig_bis || null,
+                  geometry: { type: 'Polygon', coordinates: [coords] },
+                }, {
+                  onSuccess: () => {
+                    setAreaForm({ id: '', name: '', area_type: 'park', gueltig_von: TODAY, gueltig_bis: '' });
+                    setAreaPoints([]);
+                  },
+                });
+              }}
+              disabled={!areaForm.name.trim() || areaPoints.length < 3 || areaSave.isPending}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+              <Save className="h-4 w-4" />
+              {areaSave.isPending ? 'Speichern …' : areaForm.id ? 'Änderungen speichern' : 'Fläche anlegen'}
+            </button>
+            {areaForm.id && (
+              <button onClick={() => { setAreaForm({ id: '', name: '', area_type: 'park', gueltig_von: TODAY, gueltig_bis: '' }); setAreaPoints([]); }}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">
+                <X className="h-4 w-4" /> Abbrechen
+              </button>
+            )}
+
+            <hr />
+
+            {/* Flächen-Liste */}
+            <div className="text-xs font-medium text-slate-500">{areas.length} Flächen</div>
+            <div className="space-y-0.5 overflow-y-auto">
+              {areasQ.isLoading && <div className="py-2 text-center text-xs text-muted-foreground">Lade …</div>}
+              {areas.length === 0 && !areasQ.isLoading && (
+                <div className="py-4 text-center text-xs text-muted-foreground">Noch keine Flächen.</div>
+              )}
+              {areas.map((a) => (
+                <div key={a.id}
+                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50 ${areaForm.id === a.id ? 'bg-blue-50 text-blue-700' : ''}`}
+                  onClick={() => {
+                    setAreaForm({
+                      id: a.id, name: a.name, area_type: a.area_type,
+                      gueltig_von: a.gueltig_von ?? TODAY,
+                      gueltig_bis: a.gueltig_bis ?? '',
+                    });
+                    // Innere Ring-Koordinaten ohne letzten Schlusspunkt
+                    const coords = a.geometry.coordinates[0];
+                    setAreaPoints(coords.slice(0, -1));
+                  }}>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
+                      style={{ background: AREA_TYPE_COLORS[a.area_type]?.fill }} />
+                    <span className="font-medium">{a.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-muted-foreground">{AREA_TYPE_LABELS[a.area_type]}</span>
+                    <button onClick={(e) => { e.stopPropagation(); setDeleteAreaId(a.id); }}
+                      className="ml-1 rounded p-0.5 text-red-400 hover:bg-red-50 hover:text-red-600">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Karte mit GeometryDrawer */}
+          <div className="relative flex-1 overflow-hidden rounded-xl border">
+            <GeometryDrawer
+              center={mapCenter} zoom={15}
+              type="polygon"
+              points={areaPoints}
+              onChange={setAreaPoints}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Löschen-Dialog Fläche — z-[9999] damit er vor der Karte liegt */}
+      {deleteAreaId && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-semibold">Fläche löschen?</h3>
+            <p className="mb-6 text-sm text-muted-foreground">Die Fläche wird unwiderruflich gelöscht.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteAreaId(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
+              <button onClick={() => areaDel.mutate(deleteAreaId, { onSuccess: () => { setDeleteAreaId(null); if (areaForm.id === deleteAreaId) { setAreaForm({ id: '', name: '', area_type: 'park', gueltig_von: TODAY, gueltig_bis: '' }); setAreaPoints([]); } } })}
+                disabled={areaDel.isPending}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                {areaDel.isPending ? 'Lösche …' : 'Löschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Löschen-Dialog Segment — z-[9999] damit er vor der Karte liegt */}
       {deleteSegId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="mb-2 font-semibold">Abschnitt löschen?</h3>
             <p className="mb-6 text-sm text-muted-foreground">Schäden verlieren die Netzreferenz zu diesem Abschnitt.</p>

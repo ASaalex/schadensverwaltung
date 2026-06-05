@@ -12,6 +12,7 @@ import { Hand, MapPin, Edit3, Undo2, Trash2, Ruler, Layers } from 'lucide-react'
 import { lineLength, formatLength } from '@/lib/geoMeasure';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkLayer } from './NetworkLayer';
+import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import type { NetworkNode } from '@/hooks/useNetworkNodes';
 import type { RoadSegment } from '@/hooks/useNetworkSegments';
@@ -215,7 +216,10 @@ export function NetworkEditorMap({
         <MapClickHandler onMapClick={handleMapClick} />
         <MapLayerSwitcher layers={layers} maxZoom={22} />
         {showNetwork && (
-          <NetworkLayer segments={segments} onSegmentClick={onSegmentClick} selectedId={selectedSegmentId} />
+          <>
+            <NetworkLayer segments={segments} onSegmentClick={onSegmentClick} selectedId={selectedSegmentId} />
+            <NetworkAreaLayer />
+          </>
         )}
 
         {/* Abschnitt-Linie im Abschnitt-Modus */}

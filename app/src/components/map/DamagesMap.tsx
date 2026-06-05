@@ -4,6 +4,7 @@ import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkLayer } from './NetworkLayer';
+import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 import type { DamageListItem } from '@/hooks/useDamageList';
 import type { MapLayer } from '@/types/database';
@@ -147,6 +148,7 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
         <FitBounds items={items} />
         <MapLayerSwitcher layers={layers} maxZoom={22} />
         {showNetwork && <NetworkLayer segments={segments} />}
+        {showNetwork && <NetworkAreaLayer />}
         <NetworkToggle show={showNetwork} onToggle={() => setShowNetwork((v) => !v)} />
 
         <MarkerClusterGroup

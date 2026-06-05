@@ -3,6 +3,7 @@ import { MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'r
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkLayer } from './NetworkLayer';
+import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
@@ -77,6 +78,7 @@ export function LeafletMap({
       <ClickHandler onClick={onMapClick} />
       <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={showLayerSwitcher && zoomable} />
       <NetworkLayer segments={segments} />
+      <NetworkAreaLayer />
       {markerPosition && (
         <Marker
           position={markerPosition}
