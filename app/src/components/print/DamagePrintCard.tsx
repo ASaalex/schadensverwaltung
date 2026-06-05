@@ -4,6 +4,7 @@ import type { DamageDetail } from '@/hooks/useDamageDetail';
 import type { PropertyFieldDef } from '@/types/database';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
 import { formatStationAsb } from '@/lib/networkReferencing';
+import { type PrintConfig, DEFAULT_PRINT_CONFIG } from '@/lib/printConfig';
 
 const STATUS_LABEL: Record<string, string> = {
   neu: 'Neu',
@@ -37,10 +38,15 @@ interface Props {
   /** A4-Seite mit eigenem Briefkopf? Wenn false (z.B. innerhalb Auftrags-PDF):
    *  kleinerer Header ohne Logo, kompakteres Layout, eigene Page mit page-break */
   standalone?: boolean;
+  /** Druckkonfiguration des Kunden */
+  printConfig?: PrintConfig;
 }
 
-export function DamagePrintCard({ data, printDate, authorName, standalone = true }: Props) {
+export function DamagePrintCard({ data, printDate, authorName, standalone = true, printConfig }: Props) {
   const dt = printDate ?? new Date().toLocaleString('de-DE');
+  const pc = printConfig ?? DEFAULT_PRINT_CONFIG;
+  const h = pc.header;
+  const s = pc.damage;
   const beforePhotos = data.photos.filter((p) => p.photo_type === 'before');
   const afterPhotos = data.photos.filter((p) => p.photo_type === 'after');
   const detailPhotos = data.photos.filter((p) => p.photo_type === 'detail');
@@ -81,13 +87,14 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
               <Construction className="h-7 w-7 text-white" />
             </div>
             <div>
-              <div className="text-lg font-bold text-slate-900">Bauhof Erfurt</div>
-              <div className="text-xs text-slate-500">Stadt Erfurt · Schadensverwaltung</div>
-              <div className="text-xs text-slate-500">Fischmarkt 1, 99084 Erfurt</div>
+              <div className="text-lg font-bold text-slate-900">{h.company_name || 'Schadensverwaltung'}</div>
+              {h.company_subtitle && <div className="text-xs text-slate-500">{h.company_subtitle}</div>}
+              {h.company_address  && <div className="text-xs text-slate-500">{h.company_address}</div>}
+              {h.company_phone    && <div className="text-xs text-slate-500">{h.company_phone}</div>}
             </div>
           </div>
           <div className="text-right">
-            <div className="text-xs uppercase tracking-wider text-slate-500">Schadensmeldung</div>
+            <div className="text-xs uppercase tracking-wider text-slate-500">{h.damage_title || 'Schadensmeldung'}</div>
             <div className="font-mono text-2xl font-bold">{data.damage.code}</div>
             <div className="mt-1 text-xs text-slate-500">gedruckt am {dt}</div>
             {authorName && <div className="text-xs text-slate-500">durch {authorName}</div>}
@@ -138,7 +145,7 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
       </div>
 
       {/* ── ASB-Netzreferenz ── */}
-      {data.netzSegment && (
+      {s.show_network_ref && data.netzSegment && (
         <div className="avoid-break mt-4 rounded border border-slate-300 bg-slate-50 p-3 text-sm">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Netzreferenz (ASB)
@@ -181,7 +188,8 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
         </div>
       )}
 
-      <div className="avoid-break mt-5 grid grid-cols-2 gap-3">
+      <div className={`avoid-break mt-5 grid gap-3 ${s.show_map && s.show_photos ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {s.show_photos && (
         <div>
           <div className="mb-1 text-xs uppercase tracking-wider text-slate-500">Foto</div>
           <div className="h-48 overflow-hidden rounded-lg border bg-slate-100">
@@ -194,6 +202,8 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
             )}
           </div>
         </div>
+        )}
+        {s.show_map && (
         <div>
           <div className="mb-1 text-xs uppercase tracking-wider text-slate-500">Position</div>
           <div className="h-48 overflow-hidden rounded-lg border">
@@ -213,9 +223,10 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
             )}
           </div>
         </div>
+        )}
       </div>
 
-      {data.category && data.category.property_schema.length > 0 && (
+      {s.show_properties && data.category && data.category.property_schema.length > 0 && (
         <div className="avoid-break mt-5">
           <div className="mb-1 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
             Eigenschaften
@@ -236,7 +247,7 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
         </div>
       )}
 
-      <div className="avoid-break mt-5">
+      {s.show_description && <div className="avoid-break mt-5">
         <div className="mb-1 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
           Bemerkung
         </div>
@@ -251,7 +262,7 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
             <div className="whitespace-pre-wrap text-orange-900">{data.activeOrder.company_notes}</div>
           </div>
         )}
-      </div>
+      </div>}
 
       {otherPhotos.length > 0 && (
         <div className="avoid-break mt-5">
@@ -277,7 +288,7 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
         </div>
       )}
 
-      {data.history.length > 0 && (
+      {s.show_history && data.history.length > 0 && (
         <div className="mt-5">
           <div className="mb-2 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
             Historie ({data.history.length})
@@ -301,7 +312,7 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
       )}
 
       <footer className="mt-8 flex justify-between border-t pt-3 text-xs text-slate-500">
-        <span>Schadensverwaltung Bauhof Erfurt · vertraulich</span>
+        <span>{pc.footer_text || 'Schadensverwaltung · vertraulich'}</span>
         <span>{data.damage.code} · {dt}</span>
       </footer>
     </div>

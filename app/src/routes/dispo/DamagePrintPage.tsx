@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useDamageDetail } from '@/hooks/useDamageDetail';
 import { DamagePrintCard } from '@/components/print/DamagePrintCard';
+import { usePrintConfig } from '@/hooks/usePrintConfig';
 import { ArrowLeft, Printer, FileDown } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 
@@ -10,6 +11,7 @@ export function DispoDamagePrintPage() {
   const nav = useNavigate();
   const { profile } = useAuth();
   const { data, isLoading, error } = useDamageDetail(id);
+  const { data: printConfig } = usePrintConfig();
 
   useEffect(() => {
     if (data?.damage.code) {
@@ -77,7 +79,7 @@ export function DispoDamagePrintPage() {
       )}
 
       {data && (
-        <DamagePrintCard data={data} printDate={printDate} authorName={profile?.full_name ?? null} standalone />
+        <DamagePrintCard data={data} printDate={printDate} authorName={profile?.full_name ?? null} standalone printConfig={printConfig} />
       )}
     </>
   );

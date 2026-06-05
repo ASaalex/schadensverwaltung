@@ -8,6 +8,7 @@ export interface OrderDraft {
   planned_start_date: string | null;
   planned_end_date: string | null;
   status: 'entwurf' | 'versendet';
+  custom_values?: Record<string, string>;
   positions: Array<{
     damage_id: string;
     sort_order: number;
@@ -40,6 +41,7 @@ export async function createOrder(profile: UserProfile, draft: OrderDraft): Prom
     status: draft.status,
     sent_at: draft.status === 'versendet' ? new Date().toISOString() : null,
     created_by: profile.id,
+    custom_values: draft.custom_values ?? {},
   };
 
   const { data: orderRaw, error: oErr } = await supabase

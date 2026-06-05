@@ -6,6 +6,7 @@ import { useCompanies } from '@/hooks/useCompanies';
 import { useDamageList, type DamageListItem } from '@/hooks/useDamageList';
 import { useAuth } from '@/auth/AuthContext';
 import { createOrder, type OrderDraft } from '@/lib/saveOrder';
+import { useCustomFields } from '@/hooks/useCustomFields';
 import { supabase } from '@/lib/supabase';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, GripVertical, X, Plus, Send, Save, Loader2, AlertCircle, Search } from 'lucide-react';
@@ -65,6 +66,8 @@ export function DispoOrderEditorPage() {
   const [companyId, setCompanyId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const { data: customFields = [] } = useCustomFields('order');
+  const [customValues, setCustomValues] = useState<Record<string, string>>({});
 
   // Default-Firma = erste verfügbare; Default-Datum = morgen
   useEffect(() => {
@@ -226,6 +229,7 @@ export function DispoOrderEditorPage() {
         planned_start_date: startDate || null,
         planned_end_date: endDate || null,
         status: asStatus,
+        custom_values: customValues,
         positions: positions.map((p, i) => ({
           damage_id: p.damage_id,
           sort_order: i + 1,
@@ -328,6 +332,45 @@ export function DispoOrderEditorPage() {
               />
             </div>
           </div>
+
+          {/* Kundeneigene Zusatzfelder */}
+          {customFields.length > 0 && (
+            <div className="space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Zusatzfelder</div>
+              <div className="grid grid-cols-2 gap-3">
+                {customFields.map((cf) => (
+                  <div key={cf.id}>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      {cf.field_label}{cf.required && <span className="ml-1 text-red-500">*</span>}
+                    </label>
+                    {cf.field_type === 'boolean' ? (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox"
+                          checked={customValues[cf.field_name] === 'true'}
+                          onChange={(e) => setCustomValues((v) => ({ ...v, [cf.field_name]: e.target.checked ? 'true' : 'false' }))}
+                          className="h-4 w-4" />
+                        {cf.field_label}
+                      </label>
+                    ) : cf.field_type === 'select' ? (
+                      <select
+                        value={customValues[cf.field_name] ?? ''}
+                        onChange={(e) => setCustomValues((v) => ({ ...v, [cf.field_name]: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2 text-sm">
+                        <option value="">— bitte wählen —</option>
+                        {(cf.field_options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        type={cf.field_type === 'number' ? 'number' : cf.field_type === 'date' ? 'date' : 'text'}
+                        value={customValues[cf.field_name] ?? ''}
+                        onChange={(e) => setCustomValues((v) => ({ ...v, [cf.field_name]: e.target.value }))}
+                        className="w-full rounded-lg border px-3 py-2 text-sm" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Positionen mit DnD */}
           <div className="overflow-hidden rounded-xl border bg-white">

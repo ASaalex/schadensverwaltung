@@ -4,6 +4,8 @@ import { useQueries } from '@tanstack/react-query';
 import { useOrderDetail } from '@/hooks/useOrderDetail';
 import { fetchDamageDetail, type DamageDetail } from '@/hooks/useDamageDetail';
 import { DamagePrintCard } from '@/components/print/DamagePrintCard';
+import { usePrintConfig } from '@/hooks/usePrintConfig';
+import { useCustomFields } from '@/hooks/useCustomFields';
 import { ArrowLeft, Printer, FileDown, Construction, Loader2 } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
 
@@ -30,6 +32,8 @@ export function DispoOrderPrintPage() {
   const nav = useNavigate();
   const { profile } = useAuth();
   const { data: order, isLoading, error } = useOrderDetail(id);
+  const { data: printConfig } = usePrintConfig();
+  const { data: customFields = [] } = useCustomFields('order');
 
   // Im "full"-Modus die Schadens-Details aller Positionen parallel laden
   const damageIds = mode === 'full' && order ? order.positions.map((p) => p.damage_id) : [];
@@ -124,13 +128,24 @@ export function DispoOrderPrintPage() {
                   <Construction className="h-7 w-7 text-white" />
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-slate-900">Bauhof Erfurt</div>
-                  <div className="text-xs text-slate-500">Stadt Erfurt · Schadensverwaltung</div>
-                  <div className="text-xs text-slate-500">Fischmarkt 1, 99084 Erfurt</div>
+                  <div className="text-lg font-bold text-slate-900">
+                    {printConfig?.header.company_name || 'Schadensverwaltung'}
+                  </div>
+                  {printConfig?.header.company_subtitle && (
+                    <div className="text-xs text-slate-500">{printConfig.header.company_subtitle}</div>
+                  )}
+                  {printConfig?.header.company_address && (
+                    <div className="text-xs text-slate-500">{printConfig.header.company_address}</div>
+                  )}
+                  {printConfig?.header.company_phone && (
+                    <div className="text-xs text-slate-500">{printConfig.header.company_phone}</div>
+                  )}
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs uppercase tracking-wider text-slate-500">Auftrag</div>
+                <div className="text-xs uppercase tracking-wider text-slate-500">
+                  {printConfig?.header.order_title || 'Arbeitsauftrag'}
+                </div>
                 <div className="font-mono text-2xl font-bold">{order.code}</div>
                 <div className="mt-1 text-xs text-slate-500">gedruckt am {printDate}</div>
                 {profile?.full_name && (
@@ -220,8 +235,30 @@ export function DispoOrderPrintPage() {
               </div>
             )}
 
+            {/* Kundeneigene Felder */}
+            {customFields.length > 0 && (() => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const cv = (order as any).custom_values as Record<string, string> | undefined;
+              if (!cv) return null;
+              return (
+                <div className="avoid-break mt-5">
+                  <div className="mb-2 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
+                    Zusatzinformationen
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    {customFields.map((cf) => (
+                      <div key={cf.id} className="flex gap-2">
+                        <span className="text-slate-500">{cf.field_label}:</span>
+                        <span className="font-medium">{cv[cf.field_name] || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <footer className="mt-8 flex justify-between border-t pt-3 text-xs text-slate-500">
-              <span>Schadensverwaltung Bauhof Erfurt · vertraulich</span>
+              <span>{printConfig?.footer_text || 'Schadensverwaltung · vertraulich'}</span>
               <span>{order.code} · {printDate}</span>
             </footer>
           </div>
@@ -245,6 +282,7 @@ export function DispoOrderPrintPage() {
                     printDate={printDate}
                     authorName={profile?.full_name ?? null}
                     standalone={false}
+                    printConfig={printConfig}
                   />
                 );
               })}
