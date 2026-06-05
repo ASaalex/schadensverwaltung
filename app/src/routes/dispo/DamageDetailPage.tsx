@@ -26,8 +26,11 @@ import {
   Navigation,
   Ruler,
   Route,
+  Box,
 } from 'lucide-react';
 import { formatStationAsb } from '@/lib/networkReferencing';
+import { useNetworkObjects } from '@/hooks/useNetworkObjects';
+import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
 import type { LucideIcon } from 'lucide-react';
 import type { DamageHistoryEvent } from '@/hooks/useDamageDetail';
@@ -64,6 +67,10 @@ export function DispoDamageDetailPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data, isLoading, error } = useDamageDetail(id);
+  const { query: objQuery }     = useNetworkObjects();
+  const { query: objTypeQuery } = useNetworkObjectTypes();
+  const linkedObject = objQuery.data?.find((o) => o.id === data?.damage.network_object_id) ?? null;
+  const linkedObjType = objTypeQuery.data?.find((t) => t.id === linkedObject?.object_type_id) ?? null;
   const canBundle =
     (data?.damage.status === 'neu' || data?.damage.status === 'geprueft') && !data?.activeOrder;
 
@@ -436,6 +443,48 @@ export function DispoDamageDetailPage() {
                   ) : (
                     <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">
                       <Route className="mb-0.5 inline h-3.5 w-3.5" /> Kein Netzbezug
+                    </div>
+                  )}
+
+                  {/* ── Netz-Objekt ── */}
+                  {linkedObject ? (
+                    <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
+                          <Box className="h-3.5 w-3.5" /> Netz-Objekt
+                        </div>
+                        <Link to={`/dispo/objects/${linkedObject.id}/history`}
+                          className="text-[11px] text-violet-600 underline hover:text-violet-800">
+                          Objekt-Historie →
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                        {linkedObjType && (
+                          <>
+                            <span className="text-violet-600">Typ</span>
+                            <span className="flex items-center gap-1.5 font-medium text-violet-900">
+                              <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: linkedObjType.color }} />
+                              {linkedObjType.name}
+                            </span>
+                          </>
+                        )}
+                        {linkedObject.name && (
+                          <>
+                            <span className="text-violet-600">Bezeichnung</span>
+                            <span className="font-medium text-violet-900">{linkedObject.name}</span>
+                          </>
+                        )}
+                        {linkedObject.identifier && (
+                          <>
+                            <span className="text-violet-600">Kennung</span>
+                            <span className="font-mono font-medium text-violet-900">{linkedObject.identifier}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">
+                      <Box className="mb-0.5 inline h-3.5 w-3.5" /> Kein Objektbezug
                     </div>
                   )}
 

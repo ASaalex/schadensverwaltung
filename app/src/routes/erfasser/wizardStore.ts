@@ -25,6 +25,7 @@ interface WizardState {
   address: ResolvedAddress | null;
   addressOverride: Partial<ResolvedAddress> | null;
   category: WizardCategory | null;
+  networkObjectId: string | null;   // optional: zugeordnetes Netz-Objekt
   geometry: { type: 'LineString' | 'Polygon'; coordinates: number[][] | number[][][] } | null;
   propertyValues: Record<string, unknown>;
   priority: Priority;
@@ -35,6 +36,7 @@ interface WizardState {
   setAddress: (a: ResolvedAddress | null) => void;
   setAddressOverride: (a: Partial<ResolvedAddress> | null) => void;
   setCategory: (c: WizardCategory) => void;
+  setNetworkObjectId: (id: string | null) => void;
   setGeometry: (g: WizardState['geometry']) => void;
   setPropertyValue: (name: string, value: unknown) => void;
   setPriority: (p: Priority) => void;
@@ -49,6 +51,7 @@ const initial = {
   address: null,
   addressOverride: null,
   category: null,
+  networkObjectId: null,
   geometry: null,
   propertyValues: {},
   priority: 'normal' as Priority,
@@ -70,6 +73,7 @@ export const useWizardStore = create<WizardState>((set) => ({
       // Property-Schema-Werte zurücksetzen (anderes Schema möglich)
       propertyValues: {},
     })),
+  setNetworkObjectId: (id) => set({ networkObjectId: id }),
   setGeometry: (g) => set({ geometry: g }),
   setPropertyValue: (name, value) =>
     set((s) => ({ propertyValues: { ...s.propertyValues, [name]: value } })),

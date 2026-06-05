@@ -80,6 +80,7 @@ export async function saveDamage(
     address_resolved_at: addr ? new Date().toISOString() : null,
     description: state.description.trim() || null,
     created_by: profile.id,
+    network_object_id: state.networkObjectId ?? null,
   };
 
   // eslint-disable-next-line no-console

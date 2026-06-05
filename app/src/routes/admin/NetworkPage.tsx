@@ -5,15 +5,18 @@ import { ADMIN_SIDEBAR } from './sidebar';
 import { useNetworkNodes, type NetworkNode } from '@/hooks/useNetworkNodes';
 import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments';
 import { useNetworkAreas, AREA_TYPE_LABELS, AREA_TYPE_COLORS } from '@/hooks/useNetworkAreas';
+import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
+import { useNetworkObjects, type NetworkObject } from '@/hooks/useNetworkObjects';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
+// NetworkObjectLayer wird im Karten-Tab über GeometryDrawer nicht direkt genutzt
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 import { formatStationAsb } from '@/lib/networkReferencing';
 import {
   Pencil, Trash2, Save, X, MapPin, Route,
-  Network, CheckCircle2, Layers,
+  Network, CheckCircle2, Layers, Box, Plus,
 } from 'lucide-react';
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ const EMPTY_SEG: SegForm = {
 
 // ── Hauptkomponente ───────────────────────────────────────────────────────────
 
-type PageTab = 'knoten' | 'abschnitte' | 'flaechen';
+type PageTab = 'knoten' | 'abschnitte' | 'flaechen' | 'objekte';
 
 export function AdminNetworkPage() {
   const { profile } = useAuth();
@@ -68,6 +71,10 @@ export function AdminNetworkPage() {
   const { query: nodesQ, saveMut: nodeSave, deleteMut: nodeDel } = useNetworkNodes();
   const { data: segments = [], isLoading: segLoading, error: segError } = useNetworkSegments();
   const { query: areasQ, saveMut: areaSave, deleteMut: areaDel } = useNetworkAreas();
+  const { query: objTypesQ, saveMut: objTypeSave, deleteMut: objTypeDel } = useNetworkObjectTypes();
+  const { query: objsQ,     saveMut: objSave,     deleteMut: objDel     } = useNetworkObjects();
+  const objTypes = objTypesQ.data ?? [];
+  const objs     = objsQ.data ?? [];
   const nodes: NetworkNode[] = nodesQ.data ?? [];
 
   const [tab, setTab] = useState<PageTab>('knoten');
@@ -79,6 +86,17 @@ export function AdminNetworkPage() {
   });
   const [areaPoints, setAreaPoints] = useState<number[][]>([]); // [lng,lat][]
   const [deleteAreaId, setDeleteAreaId] = useState<string | null>(null);
+
+  // ─ Objekt-Typ-State ──────────────────────────────────────────────────────
+  const [objTypeForm, setObjTypeForm] = useState({ id: '', name: '', geometry_type: 'point', color: '#6366f1', description: '' });
+  const [objTypeModalOpen, setObjTypeModalOpen] = useState(false);
+  // ─ Objekt-State ──────────────────────────────────────────────────────────
+  const [selectedObjType, setSelectedObjType] = useState<string>('');
+  const [objForm, setObjForm] = useState({ id: '', name: '', identifier: '' });
+  const [objPoints, setObjPoints] = useState<number[][]>([]);
+  const [selectedObjId, setSelectedObjId] = useState<string | null>(null);
+  const [deleteObjId, setDeleteObjId] = useState<string | null>(null);
+  const [objSubTab, setObjSubTab] = useState<'typen' | 'objekte'>('typen');
 
   // ─ Knoten-State ──────────────────────────────────────────────────────────
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
@@ -277,7 +295,7 @@ export function AdminNetworkPage() {
         <div>
           <h2 className="text-2xl font-semibold">Straßennetz</h2>
           <p className="text-sm text-muted-foreground">
-            {nodes.length} Netzknoten · {segments.length} Abschnitte · {areas.length} Flächen
+            {nodes.length} Knoten · {segments.length} Abschnitte · {areas.length} Flächen · {objs.length} Objekte
           </p>
         </div>
       </div>
@@ -295,6 +313,10 @@ export function AdminNetworkPage() {
         <button onClick={() => setTab('flaechen')}
           className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'flaechen' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
           <Layers className="h-4 w-4" /> Flächen ({areas.length})
+        </button>
+        <button onClick={() => setTab('objekte')}
+          className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm transition ${tab === 'objekte' ? 'bg-blue-600 font-medium text-white' : 'text-slate-600 hover:bg-slate-50'}`}>
+          <Box className="h-4 w-4" /> Objekte ({objs.length})
         </button>
       </div>
 
@@ -814,6 +836,225 @@ export function AdminNetworkPage() {
         </div>
       )}
 
+      {/* ════════ TAB: OBJEKTE ════════ */}
+      {tab === 'objekte' && (
+        <>
+          {/* Sub-Tabs */}
+          <div className="mb-3 flex gap-1 rounded-lg border bg-white p-1 w-fit text-sm">
+            <button onClick={() => setObjSubTab('typen')}
+              className={`rounded-md px-3 py-1.5 ${objSubTab === 'typen' ? 'bg-blue-600 text-white font-medium' : 'text-slate-600 hover:bg-slate-50'}`}>
+              Objekttypen ({objTypes.length})
+            </button>
+            <button onClick={() => setObjSubTab('objekte')}
+              className={`rounded-md px-3 py-1.5 ${objSubTab === 'objekte' ? 'bg-blue-600 text-white font-medium' : 'text-slate-600 hover:bg-slate-50'}`}>
+              Objekte ({objs.length})
+            </button>
+          </div>
+
+          {/* ── OBJEKTTYPEN ── */}
+          {objSubTab === 'typen' && (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-white">
+                <div className="flex items-center justify-between border-b px-4 py-3">
+                  <h3 className="font-medium">Objekttypen</h3>
+                  <button onClick={() => { setObjTypeForm({ id: '', name: '', geometry_type: 'point', color: '#6366f1', description: '' }); setObjTypeModalOpen(true); }}
+                    className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    <Plus className="h-3.5 w-3.5" /> Typ anlegen
+                  </button>
+                </div>
+                <div className="divide-y">
+                  {objTypes.length === 0 && (
+                    <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                      Noch keine Objekttypen. Beispiele: Laterne (Punkt), Leitplanke (Linie), Erdwall (Fläche).
+                    </div>
+                  )}
+                  {objTypes.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50">
+                      <div className="flex items-center gap-3">
+                        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ background: t.color }} />
+                        <div>
+                          <div className="text-sm font-medium">{t.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t.geometry_type === 'point' ? '● Punkt' : t.geometry_type === 'line' ? '— Linie' : '▪ Fläche'}
+                            {t.description && ` · ${t.description}`}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => { setObjTypeForm({ id: t.id, name: t.name, geometry_type: t.geometry_type, color: t.color, description: t.description ?? '' }); setObjTypeModalOpen(true); }}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={() => objTypeDel.mutate(t.id)}
+                          className="rounded p-1 text-red-400 hover:bg-red-50">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── OBJEKTE (Platzieren) ── */}
+          {objSubTab === 'objekte' && (
+            <div className="flex gap-4" style={{ height: 560 }}>
+              {/* Panel */}
+              <div className="flex w-80 flex-shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border bg-white p-4">
+                <div className="text-sm font-semibold text-slate-700">Objekt anlegen</div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Objekttyp *</label>
+                  <select value={selectedObjType}
+                    onChange={(e) => { setSelectedObjType(e.target.value); setObjPoints([]); setObjForm((f) => ({ ...f, id: '' })); }}
+                    className="w-full rounded-lg border px-3 py-2 text-sm">
+                    <option value="">— Typ wählen —</option>
+                    {objTypes.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.geometry_type === 'point' ? 'Punkt' : t.geometry_type === 'line' ? 'Linie' : 'Fläche'})</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedObjType && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Bezeichnung</label>
+                      <input value={objForm.name}
+                        onChange={(e) => setObjForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="z. B. Laterne 42"
+                        className="w-full rounded-lg border px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-700">Kennung / Nummer</label>
+                      <input value={objForm.identifier}
+                        onChange={(e) => setObjForm((f) => ({ ...f, identifier: e.target.value }))}
+                        placeholder="Interne ID oder Nummer"
+                        className="w-full rounded-lg border px-3 py-2 text-sm" />
+                    </div>
+
+                    {(() => {
+                      const type = objTypes.find((t) => t.id === selectedObjType);
+                      if (!type) return null;
+                      if (type.geometry_type === 'point') {
+                        return (
+                          <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
+                            Klicke auf die Karte um das Objekt zu platzieren.
+                            {objPoints.length > 0 && <div className="mt-1 font-medium text-emerald-700">✓ Position gesetzt</div>}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="rounded-lg bg-blue-50 p-3 text-xs text-blue-700">
+                          Zeichne die {type.geometry_type === 'line' ? 'Linie' : 'Fläche'} in der Karte.
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex-1" />
+
+                    {objSave.isError && <p className="text-xs text-red-600">{(objSave.error as Error).message}</p>}
+                    <button
+                      onClick={() => {
+                        const type = objTypes.find((t) => t.id === selectedObjType);
+                        if (!type || objPoints.length === 0) return;
+                        let geometry: NetworkObject['geometry'];
+                        if (type.geometry_type === 'point') {
+                          geometry = { type: 'Point', coordinates: objPoints[0] };
+                        } else if (type.geometry_type === 'line') {
+                          geometry = { type: 'LineString', coordinates: objPoints };
+                        } else {
+                          geometry = { type: 'Polygon', coordinates: [[...objPoints, objPoints[0]]] };
+                        }
+                        objSave.mutate({
+                          id: objForm.id || undefined,
+                          object_type_id: selectedObjType,
+                          name: objForm.name.trim() || null,
+                          identifier: objForm.identifier.trim() || null,
+                          geometry,
+                        }, { onSuccess: () => { setObjForm({ id: '', name: '', identifier: '' }); setObjPoints([]); setSelectedObjId(null); } });
+                      }}
+                      disabled={objPoints.length === 0 || objSave.isPending}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                      <Save className="h-4 w-4" />
+                      {objSave.isPending ? 'Speichern …' : objForm.id ? 'Änderungen speichern' : 'Objekt anlegen'}
+                    </button>
+                    {objForm.id && (
+                      <button onClick={() => { setObjForm({ id: '', name: '', identifier: '' }); setObjPoints([]); setSelectedObjId(null); }}
+                        className="flex w-full items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">
+                        <X className="h-4 w-4" /> Abbrechen
+                      </button>
+                    )}
+                  </>
+                )}
+
+                <hr />
+                <div className="text-xs font-medium text-slate-500">{objs.length} Objekte</div>
+                <div className="space-y-0.5 overflow-y-auto flex-1">
+                  {objs.length === 0 && <div className="py-4 text-center text-xs text-muted-foreground">Noch keine Objekte.</div>}
+                  {objs.map((o) => (
+                    <div key={o.id}
+                      className={`flex cursor-pointer items-center justify-between rounded-lg px-2 py-1.5 text-xs hover:bg-slate-50 ${selectedObjId === o.id ? 'bg-blue-50 text-blue-700' : ''}`}
+                      onClick={() => {
+                        setSelectedObjId(o.id);
+                        setSelectedObjType(o.object_type_id);
+                        setObjForm({ id: o.id, name: o.name ?? '', identifier: o.identifier ?? '' });
+                        const geom = o.geometry;
+                        if (geom.type === 'Point') setObjPoints([geom.coordinates as number[]]);
+                        else if (geom.type === 'LineString') setObjPoints(geom.coordinates as number[][]);
+                        else setObjPoints((geom.coordinates as number[][][])[0].slice(0, -1));
+                      }}>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: o.type_color }} />
+                        <span className="font-medium truncate">{o.name ?? o.identifier ?? o.type_name}</span>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteObjId(o.id); }}
+                        className="ml-1 rounded p-0.5 text-red-400 hover:bg-red-50 flex-shrink-0">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Karte */}
+              <div className="relative flex-1 overflow-hidden rounded-xl border">
+                {(() => {
+                  const type = objTypes.find((t) => t.id === selectedObjType);
+                  if (!type || type.geometry_type === 'point') {
+                    // Für Punkte: einfache Karte mit Klick-Handler
+                    return (
+                      <GeometryDrawer
+                        center={mapCenter} zoom={15}
+                        type="line" // Missbrauch: wir nutzen nur den ersten Klick
+                        points={objPoints}
+                        onChange={(pts) => {
+                          if (type?.geometry_type === 'point') {
+                            setObjPoints(pts.length > 0 ? [pts[pts.length - 1]] : []);
+                          } else {
+                            setObjPoints(pts);
+                          }
+                        }}
+                      />
+                    );
+                  }
+                  return (
+                    <GeometryDrawer
+                      center={mapCenter} zoom={15}
+                      type={type.geometry_type === 'line' ? 'line' : 'polygon'}
+                      points={objPoints}
+                      onChange={setObjPoints}
+                    />
+                  );
+                })()}
+                {/* Bestehende Objekte als Layer */}
+                {/* Note: NetworkObjectLayer inside GeometryDrawer not possible directly */}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {/* Löschen-Dialog Fläche — z-[9999] damit er vor der Karte liegt */}
       {deleteAreaId && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
@@ -826,6 +1067,86 @@ export function AdminNetworkPage() {
                 disabled={areaDel.isPending}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
                 {areaDel.isPending ? 'Lösche …' : 'Löschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Objekt löschen */}
+      {deleteObjId && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="mb-2 font-semibold">Objekt löschen?</h3>
+            <p className="mb-6 text-sm text-muted-foreground">Schäden verlieren den Objektbezug.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteObjId(null)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
+              <button onClick={() => objDel.mutate(deleteObjId, { onSuccess: () => { setDeleteObjId(null); if (selectedObjId === deleteObjId) { setSelectedObjId(null); setObjForm({ id: '', name: '', identifier: '' }); setObjPoints([]); } } })}
+                disabled={objDel.isPending}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                {objDel.isPending ? 'Lösche …' : 'Löschen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Objekttyp anlegen / bearbeiten */}
+      {objTypeModalOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <h3 className="font-semibold">{objTypeForm.id ? 'Objekttyp bearbeiten' : 'Objekttyp anlegen'}</h3>
+              <button onClick={() => setObjTypeModalOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
+            </div>
+            <div className="space-y-4 px-5 py-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Name *</label>
+                <input value={objTypeForm.name}
+                  onChange={(e) => setObjTypeForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="z. B. Laterne, Leitplanke, Erdwall"
+                  className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Geometrietyp</label>
+                  <select value={objTypeForm.geometry_type}
+                    onChange={(e) => setObjTypeForm((f) => ({ ...f, geometry_type: e.target.value }))}
+                    className="w-full rounded-lg border px-3 py-2 text-sm">
+                    <option value="point">● Punkt</option>
+                    <option value="line">— Linie</option>
+                    <option value="polygon">▪ Fläche</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-700">Farbe</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={objTypeForm.color}
+                      onChange={(e) => setObjTypeForm((f) => ({ ...f, color: e.target.value }))}
+                      className="h-9 w-12 rounded border cursor-pointer" />
+                    <span className="font-mono text-xs text-slate-500">{objTypeForm.color}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Beschreibung</label>
+                <input value={objTypeForm.description}
+                  onChange={(e) => setObjTypeForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Kurzbeschreibung"
+                  className="w-full rounded-lg border px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t px-5 py-4">
+              <button onClick={() => setObjTypeModalOpen(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
+              <button
+                onClick={() => objTypeSave.mutate(
+                  { id: objTypeForm.id || undefined, name: objTypeForm.name, geometry_type: objTypeForm.geometry_type as 'point' | 'line' | 'polygon', color: objTypeForm.color, description: objTypeForm.description || null },
+                  { onSuccess: () => setObjTypeModalOpen(false) }
+                )}
+                disabled={!objTypeForm.name.trim() || objTypeSave.isPending}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                <Save className="h-4 w-4" />
+                {objTypeSave.isPending ? 'Speichern …' : 'Speichern'}
               </button>
             </div>
           </div>

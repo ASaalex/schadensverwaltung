@@ -5,6 +5,8 @@ import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
+import { NetworkObjectLayer } from './NetworkObjectLayer';
+import { useNetworkObjects } from '@/hooks/useNetworkObjects';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 import type { DamageListItem } from '@/hooks/useDamageList';
 import type { MapLayer } from '@/types/database';
@@ -138,6 +140,8 @@ interface Props {
 
 export function DamagesMap({ center, items, selectedId, onPinClick, layers, className }: Props) {
   const { data: segments = [] } = useNetworkSegments();
+  const { query: objQuery } = useNetworkObjects();
+  const networkObjects = objQuery.data ?? [];
   const [showNetwork, setShowNetwork] = useState(true);
 
   const withPos = items.filter((d) => d.gps_lat != null && d.gps_lng != null);
@@ -149,6 +153,7 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
         <MapLayerSwitcher layers={layers} maxZoom={22} />
         {showNetwork && <NetworkLayer segments={segments} />}
         {showNetwork && <NetworkAreaLayer />}
+        {showNetwork && <NetworkObjectLayer objects={networkObjects} />}
         <NetworkToggle show={showNetwork} onToggle={() => setShowNetwork((v) => !v)} />
 
         <MarkerClusterGroup

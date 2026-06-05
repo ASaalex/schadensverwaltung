@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { CategoryNode } from '@/lib/categories';
 import type { GeometryType, Priority, PropertyFieldDef, FieldType } from '@/types/database';
+import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 
 const GEOM_ICON = { point: MapPin, line: Minus, polygon: Hexagon } as const;
 const GEOM_LABEL: Record<GeometryType, string> = {
@@ -45,6 +46,7 @@ interface FormState {
   default_priority: Priority | null;
   default_company_id: string | null;
   property_schema: PropertyFieldDef[];
+  object_type_ids: string[];
   active: boolean;
 }
 
@@ -54,6 +56,8 @@ export function AdminCategoriesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const { data: tree = [], isLoading, error } = useCategoryTree({ includeInactive: showInactive });
   const { data: companies = [] } = useCompanies();
+  const { query: objTypeQ } = useNetworkObjectTypes();
+  const objTypes = objTypeQ.data ?? [];
 
   // Edit-Modus
   const [modalOpen, setModalOpen] = useState(false);
@@ -71,6 +75,7 @@ export function AdminCategoriesPage() {
       default_priority: null,
       default_company_id: null,
       property_schema: [],
+      object_type_ids: [],
       active: true,
     };
   }
@@ -92,6 +97,7 @@ export function AdminCategoriesPage() {
       default_priority: node.default_priority,
       default_company_id: node.default_company_id,
       property_schema: node.property_schema ?? [],
+      object_type_ids: (node as unknown as { object_type_ids?: string[] }).object_type_ids ?? [],
       active: node.active,
     });
     setSaveError(null);
@@ -128,8 +134,9 @@ export function AdminCategoriesPage() {
           default_priority: form.default_priority,
           default_company_id: form.default_company_id,
           property_schema: form.property_schema,
+          object_type_ids: form.object_type_ids,
           active: form.active,
-        });
+        } as Parameters<typeof updateCategory>[1]);
       } else {
         await createCategory(profile.company_id, {
           parent_id: form.parent_id,
@@ -329,6 +336,33 @@ export function AdminCategoriesPage() {
               </select>
             </Field>
           </div>
+
+          {/* Netz-Objekttypen verknüpfen */}
+          {objTypes.length > 0 && (
+            <div className="border-t pt-3">
+              <label className="mb-2 block text-xs uppercase tracking-wider text-slate-500">
+                Verknüpfte Objekttypen (für Objekt-Vorschlag beim Erfassen)
+              </label>
+              <div className="space-y-1">
+                {objTypes.map((t) => (
+                  <label key={t.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50">
+                    <input type="checkbox"
+                      checked={form.object_type_ids.includes(t.id)}
+                      onChange={(e) => setForm((f) => ({
+                        ...f,
+                        object_type_ids: e.target.checked
+                          ? [...f.object_type_ids, t.id]
+                          : f.object_type_ids.filter((id) => id !== t.id),
+                      }))}
+                      className="h-4 w-4 rounded" />
+                    <span className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ background: t.color }} />
+                    <span>{t.name}</span>
+                    <span className="text-xs text-muted-foreground">({t.geometry_type === 'point' ? 'Punkt' : t.geometry_type === 'line' ? 'Linie' : 'Fläche'})</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Custom-Fields */}
           <div className="border-t pt-3">

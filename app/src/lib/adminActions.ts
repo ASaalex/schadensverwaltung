@@ -267,6 +267,9 @@ export async function updateCategory(id: string, patch: UpdateCategoryInput): Pr
   if (patch.parent_id !== undefined) cleaned.parent_id = patch.parent_id;
   if (patch.active !== undefined) cleaned.active = patch.active;
   if (patch.sort_order !== undefined) cleaned.sort_order = patch.sort_order;
+  if ((patch as { object_type_ids?: string[] }).object_type_ids !== undefined) {
+    cleaned.object_type_ids = (patch as { object_type_ids?: string[] }).object_type_ids ?? [];
+  }
   const { error } = await supabase
     .from('damage_categories')
     .update(cleaned as never)

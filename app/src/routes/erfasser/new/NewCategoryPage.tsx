@@ -56,7 +56,9 @@ export function NewCategoryPage() {
       property_schema: node.property_schema,
       default_priority: node.default_priority,
     });
-    nav('/erfasser/new/details');
+    // Hat die Kategorie verknüpfte Objekttypen? → Objekt-Schritt einschalten
+    const objTypeIds = (node as unknown as { object_type_ids?: string[] }).object_type_ids ?? [];
+    nav(objTypeIds.length > 0 ? '/erfasser/new/object' : '/erfasser/new/details');
   }
 
   function goBackInTree() {

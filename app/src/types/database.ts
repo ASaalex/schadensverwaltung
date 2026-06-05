@@ -63,6 +63,8 @@ export interface DamageCategory {
   property_schema: PropertyFieldDef[];
   default_priority: Priority | null;
   default_company_id: string | null;
+  /** Verknüpfte Netz-Objekttypen (für Objekt-Suggestion im Wizard) */
+  object_type_ids: string[];
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -91,6 +93,8 @@ export interface Damage {
   reviewed_by: string | null;
   reviewed_at: string | null;
   updated_at: string;
+  /** Netz-Objekt-Bezug */
+  network_object_id: string | null;
   /** ASB-Netzreferenz */
   netz_segment_id: string | null;
   netz_station_m: number | null;

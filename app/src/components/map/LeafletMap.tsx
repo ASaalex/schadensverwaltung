@@ -4,6 +4,8 @@ import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
+import { NetworkObjectLayer } from './NetworkObjectLayer';
+import { useNetworkObjects } from '@/hooks/useNetworkObjects';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
@@ -57,6 +59,8 @@ export function LeafletMap({
   const markerRef = useRef<L.Marker>(null);
   const { data: layers } = useMapLayers();
   const { data: segments = [] } = useNetworkSegments();
+  const { query: objQuery } = useNetworkObjects();
+  const networkObjects = objQuery.data ?? [];
 
   // GeoJSON-Koordinaten sind [lng, lat], Leaflet erwartet [lat, lng]
   const polygonLatLng = polygon ? polygon.map(([lng, lat]) => [lat, lng] as [number, number]) : null;
@@ -79,6 +83,7 @@ export function LeafletMap({
       <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={showLayerSwitcher && zoomable} />
       <NetworkLayer segments={segments} />
       <NetworkAreaLayer />
+      <NetworkObjectLayer objects={networkObjects} />
       {markerPosition && (
         <Marker
           position={markerPosition}
