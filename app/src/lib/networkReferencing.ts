@@ -69,21 +69,33 @@ export function formatStationAsb(m: number): string {
 
 // ─── Hauptfunktion ───────────────────────────────────────────────────────────
 
+/** Prüft ob ein Segment an einem Datum gültig ist (ISO-Datum YYYY-MM-DD) */
+function isValidOn(seg: RoadSegment, date: string): boolean {
+  if (seg.gueltig_von && seg.gueltig_von > date) return false;
+  if (seg.gueltig_bis && seg.gueltig_bis < date) return false;
+  return true;
+}
+
 /**
  * Referenziert einen GPS-Punkt auf das nächste Segment.
  * Gibt null zurück wenn keine Segmente mit Geometrie vorhanden sind.
+ *
+ * @param referenceDate ISO-Datum für Gültigkeitsprüfung (default = heute)
  */
 export function referenceToNetwork(
   lat: number,
   lng: number,
   segments: RoadSegment[],
+  referenceDate?: string,
 ): NetworkReference | null {
+  const date = referenceDate ?? new Date().toISOString().slice(0, 10);
   let bestSegId = '';
   let bestDist = Infinity;
   let bestOffset = 0;
   let bestSeg: RoadSegment | null = null;
 
   for (const seg of segments) {
+    if (!isValidOn(seg, date)) continue;
     const coords = seg.geometry?.coordinates;
     if (!coords || coords.length < 2) continue;
 

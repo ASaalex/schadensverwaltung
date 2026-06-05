@@ -60,9 +60,13 @@ function buildTooltip(seg: RoadSegment): string {
 
 interface Props {
   segments: RoadSegment[];
+  /** Wenn gesetzt: Klick auf Linie ruft Callback mit Segment-ID auf */
+  onSegmentClick?: (id: string) => void;
+  /** Segment-ID das hervorgehoben werden soll */
+  selectedId?: string | null;
 }
 
-export function NetworkLayer({ segments }: Props) {
+export function NetworkLayer({ segments, onSegmentClick, selectedId }: Props) {
   return (
     <>
       {segments.map((seg) => {
@@ -70,15 +74,24 @@ export function NetworkLayer({ segments }: Props) {
         const positions = seg.geometry.coordinates.map(
           ([lng, lat]) => [lat, lng] as [number, number],
         );
+        const isSelected = seg.id === selectedId;
         return (
           <Polyline
             key={seg.id}
             positions={positions}
             pathOptions={{
               color: segmentColor(seg),
-              weight: segmentWeight(seg),
-              opacity: 0.8,
+              weight: isSelected ? segmentWeight(seg) + 3 : segmentWeight(seg),
+              opacity: isSelected ? 1 : 0.8,
+              ...(isSelected && { dashArray: undefined }),
             }}
+            eventHandlers={
+              onSegmentClick
+                ? { click: () => onSegmentClick(seg.id) }
+                : undefined
+            }
+            // Cursor als Pointer wenn klickbar
+            className={onSegmentClick ? 'cursor-pointer' : undefined}
           >
             <Tooltip sticky>{buildTooltip(seg)}</Tooltip>
           </Polyline>

@@ -189,6 +189,13 @@ export function DispoDamagesPage() {
   );
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
 
+  // Karte: eigenes Memo — ändert sich nur wenn sorted sich ändert (nach Debounce),
+  // NICHT bei jedem searchInput-Tastendruck. Verhindert 10k-Marker-Re-render.
+  const mapItems = useMemo(
+    () => sorted.filter((d) => d.gps_lat != null && d.gps_lng != null),
+    [sorted],
+  );
+
   // ============= Filter zurücksetzen =============
   const hasAnyFilter =
     !!dateFrom || !!dateTo || statusFilter.size > 0 || prioFilter.size > 0 || categoryFilter.size > 0 || !!searchText;
@@ -631,7 +638,7 @@ export function DispoDamagesPage() {
           <div className="h-[600px]">
             <DamagesMap
               center={mapCenter}
-              items={sorted.filter((d) => d.gps_lat != null && d.gps_lng != null)}
+              items={mapItems}
               selectedId={selectedId}
               onPinClick={(id) => nav(`/dispo/damages/${id}`)}
               layers={layers}

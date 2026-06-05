@@ -175,9 +175,13 @@ interface Props {
   segments: RoadSegment[];
   /** Callback wenn ein Knoten angeklickt wird (name, coords, isStart) */
   onNodeSnap: (name: string, coords: [number, number], isStart: boolean) => void;
+  /** Callback wenn ein Segment in der Karte angeklickt wird */
+  onSegmentClick?: (id: string) => void;
+  /** Hervorgehobenes Segment (angeklickt/bearbeitet) */
+  selectedSegmentId?: string | null;
 }
 
-export function NetworkMapEditor({ center, zoom = 14, points, onChange, segments, onNodeSnap }: Props) {
+export function NetworkMapEditor({ center, zoom = 14, points, onChange, segments, onNodeSnap, onSegmentClick, selectedSegmentId }: Props) {
   const [mode, setMode] = useState<DrawMode>('draw');
   const [showNetwork, setShowNetwork] = useState(true);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
@@ -225,7 +229,13 @@ export function NetworkMapEditor({ center, zoom = 14, points, onChange, segments
         <MapLayerSwitcher layers={layers} maxZoom={22} />
 
         {/* Netz-Overlay */}
-        {showNetwork && <NetworkLayer segments={segments} />}
+        {showNetwork && (
+          <NetworkLayer
+            segments={segments}
+            onSegmentClick={onSegmentClick}
+            selectedId={selectedSegmentId}
+          />
+        )}
 
         {/* Bestehende Netzknoten als anklickbare Marker */}
         {Array.from(nodes.entries()).map(([name, coords]) => (

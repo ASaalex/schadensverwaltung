@@ -5,6 +5,10 @@ export interface RoadSegment {
   id: string;
   from_node: string;
   to_node: string;
+  /** Gültig ab (ISO-Datum) */
+  gueltig_von: string | null;
+  /** Gültig bis (ISO-Datum, null = unbegrenzt) */
+  gueltig_bis: string | null;
   name: string | null;
   length_m: number | null;
   /** Legacy-Klasse (wird durch strassen_klasse_asb abgelöst) */
@@ -36,7 +40,7 @@ export function useNetworkSegments() {
         .select(
           'id, from_node, to_node, name, length_m, road_class, ' +
           'strassen_klasse_asb, strassen_nummer, abschnitts_nummer, ast_nummer, ' +
-          'von_station, bis_station, geometry, created_at, updated_at',
+          'von_station, bis_station, gueltig_von, gueltig_bis, geometry, created_at, updated_at',
         )
         .order('strassen_nummer', { ascending: true, nullsFirst: false })
         .order('from_node');

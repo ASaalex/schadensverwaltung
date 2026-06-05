@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { ADMIN_SIDEBAR } from './sidebar';
@@ -56,14 +56,20 @@ interface FormState {
   ast_nummer:         string;
   von_station:        string;
   length_m:           string;
+  gueltig_von:        string;
+  gueltig_bis:        string;
   geometry:           number[][] | null;
 }
+
+const TODAY = new Date().toISOString().slice(0, 10);
 
 const EMPTY: FormState = {
   from_node: '', to_node: '', name: '',
   strassen_klasse_asb: 'K', strassen_nummer: '',
   abschnitts_nummer: '', ast_nummer: '0',
-  von_station: '0', length_m: '', geometry: null,
+  von_station: '0', length_m: '',
+  gueltig_von: TODAY, gueltig_bis: '',
+  geometry: null,
 };
 
 const DEFAULT_CENTER: [number, number] = [50.9787, 11.0328];
@@ -75,10 +81,12 @@ export function AdminNetworkPage() {
   const { profile } = useAuth();
   const { data: segments = [], isLoading, error } = useNetworkSegments();
 
-  const [editId,  setEditId]  = useState<string | null>(null);
-  const [form,    setForm]    = useState<FormState>(EMPTY);
-  const [deleteId,setDeleteId]= useState<string | null>(null);
-  const [search,  setSearch]  = useState('');
+  const [editId,       setEditId]       = useState<string | null>(null);
+  const [form,         setForm]         = useState<FormState>(EMPTY);
+  const [deleteId,     setDeleteId]     = useState<string | null>(null);
+  const [search,       setSearch]       = useState('');
+  const [filterDate,   setFilterDate]   = useState(TODAY); // Gültig-am Filter
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
 
   // Karten-Center
   const mapCenter: [number, number] = form.geometry?.length
@@ -97,6 +105,16 @@ export function AdminNetworkPage() {
     ? parseFloat(form.von_station) + parseFloat(form.length_m)
     : null;
 
+  function handleMapSegmentClick(id: string) {
+    const seg = segments.find((s) => s.id === id);
+    if (!seg) return;
+    loadSeg(seg);
+    // Zur Tabellenzeile scrollen
+    setTimeout(() => {
+      rowRefs.current.get(id)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }
+
   function loadSeg(seg: RoadSegment) {
     setEditId(seg.id);
     setForm({
@@ -109,6 +127,8 @@ export function AdminNetworkPage() {
       ast_nummer:          seg.ast_nummer ?? '0',
       von_station:         seg.von_station != null ? String(seg.von_station) : '0',
       length_m:            seg.length_m != null ? String(seg.length_m) : '',
+      gueltig_von:         seg.gueltig_von ?? TODAY,
+      gueltig_bis:         seg.gueltig_bis ?? '',
       geometry:            seg.geometry?.coordinates ?? null,
     });
   }
@@ -134,6 +154,8 @@ export function AdminNetworkPage() {
         geometry:            form.geometry?.length
           ? { type: 'LineString', coordinates: form.geometry }
           : null,
+        gueltig_von:         form.gueltig_von || TODAY,
+        gueltig_bis:         form.gueltig_bis || null,
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tbl = (supabase as any).from('road_segments');
@@ -170,6 +192,10 @@ export function AdminNetworkPage() {
     : null;
 
   const filtered = segments.filter((s) => {
+    // Gültigkeitsfilter
+    if (s.gueltig_von && s.gueltig_von > filterDate) return false;
+    if (s.gueltig_bis && s.gueltig_bis < filterDate) return false;
+    // Textsuche
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return [s.from_node, s.to_node, s.name, s.strassen_nummer, s.abschnitts_nummer, s.strassen_klasse_asb]
@@ -349,6 +375,26 @@ export function AdminNetworkPage() {
             </div>
           )}
 
+          {/* Gültigkeitszeitraum */}
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">Gültigkeitszeitraum</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-0.5 block text-[11px] text-slate-500">Gültig von</label>
+                <input type="date" value={form.gueltig_von}
+                  onChange={(e) => setForm((f) => ({ ...f, gueltig_von: e.target.value }))}
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="mb-0.5 block text-[11px] text-slate-500">Gültig bis (leer = unbegrenzt)</label>
+                <input type="date" value={form.gueltig_bis}
+                  onChange={(e) => setForm((f) => ({ ...f, gueltig_bis: e.target.value }))}
+                  min={form.gueltig_von}
+                  className="w-full rounded-lg border px-2 py-1.5 text-sm" />
+              </div>
+            </div>
+          </div>
+
           {/* Linie löschen */}
           {form.geometry && (
             <button type="button"
@@ -385,7 +431,9 @@ export function AdminNetworkPage() {
             center={mapCenter} zoom={14}
             points={form.geometry ?? []}
             onChange={(pts) => setForm((f) => ({ ...f, geometry: pts.length > 0 ? pts : null }))}
-            segments={segments}
+            segments={filtered}
+            onSegmentClick={handleMapSegmentClick}
+            selectedSegmentId={editId}
             onNodeSnap={(name, _coords, isStart) => {
               if (isStart) setForm((f) => ({ ...f, from_node: f.from_node || name }));
               else         setForm((f) => ({ ...f, to_node: name }));
@@ -396,11 +444,24 @@ export function AdminNetworkPage() {
 
       {/* Tabelle */}
       <div className="rounded-xl border bg-white">
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h3 className="font-medium">Alle Abschnitte ({segments.length})</h3>
-          <input value={search} onChange={(e) => setSearch(e.target.value)}
-            placeholder="Suche nach Straße, Abschnitt, Klasse …"
-            className="rounded-lg border px-3 py-1.5 text-sm w-72" />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+          <h3 className="font-medium">
+            Abschnitte ({filtered.length}
+            {filtered.length !== segments.length && <span className="text-muted-foreground"> von {segments.length}</span>})
+          </h3>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <label className="text-xs text-muted-foreground whitespace-nowrap">Gültig am</label>
+              <input type="date" value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="rounded-lg border px-2 py-1.5 text-sm" />
+              <button onClick={() => setFilterDate(TODAY)}
+                className="text-xs text-blue-600 underline whitespace-nowrap">Heute</button>
+            </div>
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Suche …"
+              className="rounded-lg border px-3 py-1.5 text-sm w-56" />
+          </div>
         </div>
 
         {/* Legende */}
@@ -426,6 +487,7 @@ export function AdminNetworkPage() {
                 <th className="px-3 py-2 text-right">Station von–bis</th>
                 <th className="px-3 py-2 text-right">Länge</th>
                 <th className="px-3 py-2 text-center">Geo.</th>
+                <th className="px-3 py-2 text-left">Gültig von–bis</th>
                 <th className="px-3 py-2 text-right">Akt.</th>
               </tr>
             </thead>
@@ -439,7 +501,8 @@ export function AdminNetworkPage() {
               )}
               {filtered.map((seg) => (
                 <tr key={seg.id}
-                  className={`cursor-pointer hover:bg-slate-50 ${editId === seg.id ? 'bg-blue-50' : ''}`}
+                  ref={(el) => { if (el) rowRefs.current.set(seg.id, el); else rowRefs.current.delete(seg.id); }}
+                  className={`cursor-pointer hover:bg-slate-50 ${editId === seg.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-300' : ''}`}
                   onClick={() => loadSeg(seg)}>
                   <td className="px-3 py-2">
                     {seg.strassen_klasse_asb ? (
@@ -468,6 +531,13 @@ export function AdminNetworkPage() {
                     {seg.geometry
                       ? <span className="text-xs text-emerald-600">✓ {seg.geometry.coordinates.length}</span>
                       : <span className="text-xs text-muted-foreground">—</span>}
+                  </td>
+                  <td className="px-3 py-2 text-xs tabular-nums">
+                    <span className="text-slate-600">{seg.gueltig_von ?? '—'}</span>
+                    {' '}–{' '}
+                    <span className={seg.gueltig_bis ? 'text-slate-600' : 'text-emerald-600'}>
+                      {seg.gueltig_bis ?? '∞'}
+                    </span>
                   </td>
                   <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
