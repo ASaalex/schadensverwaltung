@@ -74,12 +74,12 @@ export function DispoDamagesPage() {
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [prioFilter, setPrioFilter] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set()); // IDs der gewählten Roots
-  // Suche: sofortige Anzeige im Input, verzögerte Filterung (600 ms Debounce)
-  const [searchInput, setSearchInput] = useState('');
+  // Suche: unkontrolliertes Input (kein Re-Render beim Tippen),
+  // React wird erst nach 600 ms Debounce mit neuem searchText informiert.
   const [searchText,  setSearchText]  = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearchChange = useCallback((val: string) => {
-    setSearchInput(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => setSearchText(val), 600);
   }, []);
@@ -206,7 +206,7 @@ export function DispoDamagesPage() {
     setPrioFilter(new Set());
     setCategoryFilter(new Set());
     setSearchText('');
-    setSearchInput('');
+    if (searchInputRef.current) searchInputRef.current.value = '';
   }
 
   // ============= Quick Date Picker =============
@@ -406,7 +406,8 @@ export function DispoDamagesPage() {
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
-                value={searchInput}
+                ref={searchInputRef}
+                defaultValue=""
                 onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ID, Bemerkung, Adresse …"
                 className="w-full rounded-lg border py-1.5 pl-7 pr-2 text-sm"
