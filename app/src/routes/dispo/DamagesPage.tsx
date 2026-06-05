@@ -81,7 +81,7 @@ export function DispoDamagesPage() {
   const debounceRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearchChange = useCallback((val: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setSearchText(val), 600);
+    debounceRef.current = setTimeout(() => setSearchText(val), 1500);
   }, []);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
