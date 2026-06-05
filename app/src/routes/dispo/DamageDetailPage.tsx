@@ -397,28 +397,45 @@ export function DispoDamageDetailPage() {
                   })()}
 
                   {/* ── ASB-Netzreferenz ── */}
-                  {data.damage.netz_referenz ? (
+                  {data.netzSegment ? (
                     <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
-                      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-sky-700">
                         <Route className="h-3.5 w-3.5" /> Netzreferenz (ASB)
                       </div>
-                      <div className="text-xs text-sky-900">{data.damage.netz_referenz}</div>
-                      {data.damage.netz_station_m != null && (
-                        <div className="mt-1 grid grid-cols-2 gap-x-2 text-[11px] text-sky-700">
-                          <span>Station:</span>
-                          <span className="font-mono">{formatStationAsb(data.damage.netz_station_m)} m</span>
-                          {data.damage.netz_abstand_m != null && (
-                            <>
-                              <span>Lotabstand:</span>
-                              <span className="font-mono">{data.damage.netz_abstand_m.toFixed(1)} m</span>
-                            </>
-                          )}
+                      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                        <span className="text-sky-600">Von Netzknoten</span>
+                        <span className="font-mono font-medium text-sky-900">{data.netzSegment.from_node}</span>
+                        <span className="text-sky-600">Nach Netzknoten</span>
+                        <span className="font-mono font-medium text-sky-900">{data.netzSegment.to_node}</span>
+                        {data.damage.netz_station_m != null && (
+                          <>
+                            <span className="text-sky-600">Station</span>
+                            <span className="font-mono font-medium text-sky-900">
+                              {formatStationAsb(data.damage.netz_station_m)} m
+                            </span>
+                          </>
+                        )}
+                        {data.damage.netz_abstand_m != null && (
+                          <>
+                            <span className="text-sky-600">Lotabstand</span>
+                            <span className="font-mono font-medium text-sky-900">
+                              {data.damage.netz_abstand_m.toFixed(1)} m
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {data.netzSegment.strassen_klasse_asb && (
+                        <div className="mt-1.5 text-[11px] text-sky-600">
+                          {data.netzSegment.strassen_klasse_asb}
+                          {data.netzSegment.strassen_nummer && ` ${data.netzSegment.strassen_nummer}`}
+                          {data.netzSegment.abschnitts_nummer && ` · Abschn. ${data.netzSegment.abschnitts_nummer}`}
+                          {data.netzSegment.ast_nummer && data.netzSegment.ast_nummer !== '0' && `/${data.netzSegment.ast_nummer}`}
                         </div>
                       )}
                     </div>
                   ) : (
                     <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">
-                      <Route className="mb-0.5 inline h-3.5 w-3.5" /> Kein Netzbezug (noch kein Straßennetz angelegt)
+                      <Route className="mb-0.5 inline h-3.5 w-3.5" /> Kein Netzbezug
                     </div>
                   )}
 

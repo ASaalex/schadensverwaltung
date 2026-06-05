@@ -50,6 +50,15 @@ export interface RelatedComment {
   user_name: string | null;
 }
 
+export interface NetzSegmentInfo {
+  from_node: string;
+  to_node: string;
+  strassen_klasse_asb: string | null;
+  strassen_nummer: string | null;
+  abschnitts_nummer: string | null;
+  ast_nummer: string | null;
+}
+
 export interface DamageDetail {
   damage: Damage;
   category: DamageCategoryFull | null;
@@ -59,6 +68,7 @@ export interface DamageDetail {
   comments: RelatedComment[];
   creatorName?: string | null;
   activeOrder: ActiveOrderInfo | null;
+  netzSegment: NetzSegmentInfo | null;
 }
 
 export async function fetchDamageDetail(id: string): Promise<DamageDetail> {
@@ -174,7 +184,19 @@ async function fetchDetail(id: string): Promise<DamageDetail> {
     user_name: r.user?.full_name ?? null,
   }));
 
-  return { damage, category, categoryPath, photos, history, comments, creatorName, activeOrder };
+  // 8) Netz-Segment-Info (Von/Bis-Knoten für Anzeige)
+  let netzSegment: NetzSegmentInfo | null = null;
+  if (damage.netz_segment_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: segRaw } = await (supabase as any)
+      .from('road_segments')
+      .select('from_node, to_node, strassen_klasse_asb, strassen_nummer, abschnitts_nummer, ast_nummer')
+      .eq('id', damage.netz_segment_id)
+      .maybeSingle();
+    if (segRaw) netzSegment = segRaw as NetzSegmentInfo;
+  }
+
+  return { damage, category, categoryPath, photos, history, comments, creatorName, activeOrder, netzSegment };
 }
 
 export function useDamageDetail(id: string | undefined) {

@@ -3,6 +3,7 @@ import { Construction, Image as ImageIcon } from 'lucide-react';
 import type { DamageDetail } from '@/hooks/useDamageDetail';
 import type { PropertyFieldDef } from '@/types/database';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
+import { formatStationAsb } from '@/lib/networkReferencing';
 
 const STATUS_LABEL: Record<string, string> = {
   neu: 'Neu',
@@ -135,6 +136,50 @@ export function DamagePrintCard({ data, printDate, authorName, standalone = true
           )}
         </div>
       </div>
+
+      {/* ── ASB-Netzreferenz ── */}
+      {data.netzSegment && (
+        <div className="avoid-break mt-4 rounded border border-slate-300 bg-slate-50 p-3 text-sm">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            Netzreferenz (ASB)
+          </div>
+          <div className="grid grid-cols-4 gap-x-4 gap-y-1 text-xs">
+            <div>
+              <div className="text-slate-500">Von Netzknoten</div>
+              <div className="font-mono font-semibold">{data.netzSegment.from_node}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Nach Netzknoten</div>
+              <div className="font-mono font-semibold">{data.netzSegment.to_node}</div>
+            </div>
+            <div>
+              <div className="text-slate-500">Station</div>
+              <div className="font-mono font-semibold">
+                {data.damage.netz_station_m != null
+                  ? `${formatStationAsb(data.damage.netz_station_m)} m`
+                  : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500">Lotabstand</div>
+              <div className="font-mono font-semibold">
+                {data.damage.netz_abstand_m != null
+                  ? `${data.damage.netz_abstand_m.toFixed(1)} m`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+          {(data.netzSegment.strassen_klasse_asb || data.netzSegment.strassen_nummer || data.netzSegment.abschnitts_nummer) && (
+            <div className="mt-1.5 text-[11px] text-slate-500">
+              {[
+                data.netzSegment.strassen_klasse_asb,
+                data.netzSegment.strassen_nummer,
+                data.netzSegment.abschnitts_nummer && `Abschn. ${data.netzSegment.abschnitts_nummer}${data.netzSegment.ast_nummer && data.netzSegment.ast_nummer !== '0' ? `/${data.netzSegment.ast_nummer}` : ''}`,
+              ].filter(Boolean).join(' · ')}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="avoid-break mt-5 grid grid-cols-2 gap-3">
         <div>
