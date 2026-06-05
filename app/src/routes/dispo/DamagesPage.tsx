@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
@@ -74,7 +74,15 @@ export function DispoDamagesPage() {
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [prioFilter, setPrioFilter] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set()); // IDs der gewählten Roots
-  const [searchText, setSearchText] = useState('');
+  // Suche: sofortige Anzeige im Input, verzögerte Filterung (600 ms Debounce)
+  const [searchInput, setSearchInput] = useState('');
+  const [searchText,  setSearchText]  = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = useCallback((val: string) => {
+    setSearchInput(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setSearchText(val), 600);
+  }, []);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
   // ============= Pagination =============
@@ -191,6 +199,7 @@ export function DispoDamagesPage() {
     setPrioFilter(new Set());
     setCategoryFilter(new Set());
     setSearchText('');
+    setSearchInput('');
   }
 
   // ============= Quick Date Picker =============
@@ -390,8 +399,8 @@ export function DispoDamagesPage() {
             <div className="relative">
               <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-slate-400" />
               <input
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="ID, Bemerkung, Adresse …"
                 className="w-full rounded-lg border py-1.5 pl-7 pr-2 text-sm"
               />

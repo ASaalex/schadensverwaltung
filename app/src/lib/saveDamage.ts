@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { queuePendingDamage, type PendingDamagePayload, type PendingPhotoBlob } from './offlineDb';
+import { referenceToNetwork } from './networkReferencing';
 import type { UserProfile } from '@/types/database';
 import type { useWizardStore } from '@/routes/erfasser/wizardStore';
 
@@ -143,6 +144,39 @@ export async function saveDamage(
       // eslint-disable-next-line no-console
       console.error('[saveDamage] damage_photos-INSERT-Fehler:', phErr);
       // Datei ist im Storage, aber Row fehlt — nicht fatal, weitermachen
+    }
+  }
+
+  // ── ASB-Netzreferenzierung (best-effort, nicht blockierend) ──────────────
+  if (state.position) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: segData } = await (supabase as any)
+        .from('road_segments')
+        .select(
+          'id, from_node, to_node, name, length_m, road_class, ' +
+          'strassen_klasse_asb, strassen_nummer, abschnitts_nummer, ast_nummer, ' +
+          'von_station, bis_station, geometry',
+        )
+        .eq('company_id', profile.company_id);
+
+      const segments = segData ?? [];
+      const ref = referenceToNetwork(state.position.lat, state.position.lng, segments);
+      if (ref) {
+        await supabase
+          .from('damages')
+          .update({
+            netz_segment_id: ref.segment_id,
+            netz_station_m: ref.station_m,
+            netz_offset_m: ref.offset_m,
+            netz_abstand_m: ref.abstand_m,
+            netz_referenz: ref.referenz_text,
+          } as never)
+          .eq('id', damage.id);
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[saveDamage] Netzreferenzierung fehlgeschlagen (nicht kritisch):', e);
     }
   }
 

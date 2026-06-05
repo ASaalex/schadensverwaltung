@@ -91,6 +91,12 @@ export interface Damage {
   reviewed_by: string | null;
   reviewed_at: string | null;
   updated_at: string;
+  /** ASB-Netzreferenz */
+  netz_segment_id: string | null;
+  netz_station_m: number | null;
+  netz_offset_m: number | null;
+  netz_abstand_m: number | null;
+  netz_referenz: string | null;
 }
 
 export interface Order {

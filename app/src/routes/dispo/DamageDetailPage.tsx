@@ -25,7 +25,9 @@ import {
   Loader2,
   Navigation,
   Ruler,
+  Route,
 } from 'lucide-react';
+import { formatStationAsb } from '@/lib/networkReferencing';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
 import type { LucideIcon } from 'lucide-react';
 import type { DamageHistoryEvent } from '@/hooks/useDamageDetail';
@@ -393,6 +395,32 @@ export function DispoDamageDetailPage() {
                     }
                     return null;
                   })()}
+
+                  {/* ── ASB-Netzreferenz ── */}
+                  {data.damage.netz_referenz ? (
+                    <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2">
+                      <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-sky-700">
+                        <Route className="h-3.5 w-3.5" /> Netzreferenz (ASB)
+                      </div>
+                      <div className="text-xs text-sky-900">{data.damage.netz_referenz}</div>
+                      {data.damage.netz_station_m != null && (
+                        <div className="mt-1 grid grid-cols-2 gap-x-2 text-[11px] text-sky-700">
+                          <span>Station:</span>
+                          <span className="font-mono">{formatStationAsb(data.damage.netz_station_m)} m</span>
+                          {data.damage.netz_abstand_m != null && (
+                            <>
+                              <span>Lotabstand:</span>
+                              <span className="font-mono">{data.damage.netz_abstand_m.toFixed(1)} m</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-400">
+                      <Route className="mb-0.5 inline h-3.5 w-3.5" /> Kein Netzbezug (noch kein Straßennetz angelegt)
+                    </div>
+                  )}
 
                   {/* Navi-Button */}
                   {data.damage.gps_lat != null && data.damage.gps_lng != null && (
