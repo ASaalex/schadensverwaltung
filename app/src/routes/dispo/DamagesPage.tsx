@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type L from 'leaflet';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
-import { useDamageList, type DamageListItem } from '@/hooks/useDamageList';
+import { type DamageListItem } from '@/hooks/useDamageList';
+import {
+  useDamagesQuery, useDamagesInBounds, fetchAllDamages,
+  type DamageFilters, type DamageBounds,
+} from '@/hooks/useDamagesQuery';
+import { useAuth } from '@/auth/AuthContext';
 import { useCategoryTree } from '@/hooks/useCategoryTree';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { DamagesMap } from '@/components/map/DamagesMap';
@@ -21,6 +27,7 @@ import {
   Filter as FilterIcon,
   X,
   PackagePlus,
+  Loader2,
 } from 'lucide-react';
 import type { CategoryNode } from '@/lib/categories';
 
@@ -57,14 +64,9 @@ function collectDescendantIds(node: CategoryNode): string[] {
   return [node.id, ...node.children.flatMap(collectDescendantIds)];
 }
 
-const PRIO_ORDER: Record<string, number> = { niedrig: 0, normal: 1, hoch: 2, dringend: 3 };
-const STATUS_ORDER: Record<string, number> = {
-  neu: 0, geprueft: 1, zugewiesen: 2, bearbeitung: 3, erledigt: 4, abgelehnt: 5,
-};
-
 export function DispoDamagesPage() {
   const nav = useNavigate();
-  const { data: damages = [], isLoading, error } = useDamageList();
+  const { profile } = useAuth();
   const { data: tree = [] } = useCategoryTree();
   const { data: layers = [] } = useMapLayers();
 
@@ -132,69 +134,59 @@ export function DispoDamagesPage() {
     return ids;
   }, [tree, categoryFilter]);
 
-  // ============= Filter + Sort anwenden =============
-  const filtered = useMemo(() => {
-    const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : -Infinity;
-    const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : Infinity;
-    const q = searchText.trim().toLowerCase();
+  // ============= Serverseitige Filter (an DB übergeben) =============
+  const filters: DamageFilters = useMemo(() => ({
+    search: searchText,
+    status: Array.from(statusFilter),
+    priority: Array.from(prioFilter),
+    categoryIds: effectiveCategoryIds ? Array.from(effectiveCategoryIds) : null,
+    dateFrom, dateTo, showCompleted,
+  }), [searchText, statusFilter, prioFilter, effectiveCategoryIds, dateFrom, dateTo, showCompleted]);
 
-    return damages.filter((d) => {
-      const ts = new Date(d.created_at).getTime();
-      if (ts < fromTs || ts > toTs) return false;
-      // Default: erledigte + abgelehnte ausblenden (außer User aktiviert Toggle)
-      if (!showCompleted && (d.status === 'erledigt' || d.status === 'abgelehnt')) return false;
-      if (statusFilter.size > 0 && !statusFilter.has(d.status)) return false;
-      if (prioFilter.size > 0 && !prioFilter.has(d.priority)) return false;
-      if (effectiveCategoryIds && !effectiveCategoryIds.has(d.category_id)) return false;
-      if (q) {
-        const haystack = [
-          d.code, d.description, d.address_street, d.address_city, d.category_name,
-          d.creator_name,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-      return true;
-    });
-  }, [damages, dateFrom, dateTo, statusFilter, prioFilter, effectiveCategoryIds, searchText, showCompleted]);
+  // Page bei Filter-/Sort-Änderung zurücksetzen
+  useEffect(() => { setPage(0); }, [filters, sort]);
 
-  const sorted = useMemo(() => {
-    const arr = [...filtered];
-    arr.sort((a, b) => {
-      const m = sort.dir === 'asc' ? 1 : -1;
-      const av = sortValue(a, sort.key);
-      const bv = sortValue(b, sort.key);
-      if (av === bv) return 0;
-      if (av == null) return 1 * m;
-      if (bv == null) return -1 * m;
-      return av > bv ? 1 * m : -1 * m;
-    });
-    return arr;
-  }, [filtered, sort]);
+  // Tabelle: serverseitig paginiert + sortiert
+  const { data: pageData, isLoading, isFetching, error } = useDamagesQuery(filters, sort, page, pageSize);
+  const tableRows = pageData?.rows ?? [];
+  const total = pageData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  // ============= Default-Center der Karte =============
+  // ============= Karte: Viewport-basiert =============
+  const [mapBounds, setMapBounds] = useState<DamageBounds | null>(null);
+  const { data: boundsData, isFetching: mapFetching } = useDamagesInBounds(filters, mapBounds, !!mapBounds);
+  const mapItems = boundsData?.items ?? [];
+  const mapCapped = boundsData?.capped ?? false;
+
   const mapCenter: [number, number] = useMemo(() => {
-    const withPos = sorted.find((d) => d.gps_lat != null && d.gps_lng != null);
+    const withPos = tableRows.find((d) => d.gps_lat != null && d.gps_lng != null);
     if (withPos) return [withPos.gps_lat!, withPos.gps_lng!];
     return [50.9787, 11.0328]; // Erfurt
-  }, [sorted]);
+  // nur initial relevant
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Page bei Filter- oder Sort-Änderung zurücksetzen
-  useEffect(() => { setPage(0); }, [sorted]);
-  const tableRows = useMemo(
-    () => sorted.slice(page * pageSize, (page + 1) * pageSize),
-    [sorted, page, pageSize],
-  );
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  function handleMapView(b: L.LatLngBounds) {
+    setMapBounds({ minLng: b.getWest(), minLat: b.getSouth(), maxLng: b.getEast(), maxLat: b.getNorth() });
+  }
 
-  // Karte: eigenes Memo — ändert sich nur wenn sorted sich ändert (nach Debounce),
-  // NICHT bei jedem searchInput-Tastendruck. Verhindert 10k-Marker-Re-render.
-  const mapItems = useMemo(
-    () => sorted.filter((d) => d.gps_lat != null && d.gps_lng != null),
-    [sorted],
-  );
+  // Export: lädt ALLE gefilterten Schäden (serverseitig, gedeckelt)
+  const [exporting, setExporting] = useState(false);
+  async function handleExport(kind: 'csv' | 'geojson') {
+    if (!profile?.company_id) return;
+    setExporting(true);
+    try {
+      const all = await fetchAllDamages(filters, profile.company_id, sort);
+      if (kind === 'csv') exportCsv(all); else exportGeoJson(all);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[Export] fehlgeschlagen:', e);
+      alert('Export fehlgeschlagen: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+      setExportOpen(false);
+    }
+  }
 
   // ============= Filter zurücksetzen =============
   const hasAnyFilter =
@@ -237,8 +229,9 @@ export function DispoDamagesPage() {
         <div>
           <h2 className="text-2xl font-semibold">Schäden</h2>
           <p className="text-sm text-muted-foreground">
-            {filtered.length} von {damages.length}
+            {total.toLocaleString('de-DE')} Schäden
             {hasAnyFilter && <span className="ml-1 text-blue-600">· gefiltert</span>}
+            {isFetching && <Loader2 className="ml-1 inline h-3 w-3 animate-spin text-blue-500" />}
             {bundleIds.size > 0 && <span className="ml-1 text-blue-600">· {bundleIds.size} ausgewählt</span>}
             <span className="ml-1">· Seite {page + 1}/{totalPages}</span>
           </p>
@@ -273,17 +266,19 @@ export function DispoDamagesPage() {
             {exportOpen && (
               <div className="absolute right-0 top-full z-10 mt-1 w-56 rounded-lg border bg-white py-1 text-sm shadow-lg">
                 <button
-                  onClick={() => { exportCsv(sorted); setExportOpen(false); }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50"
+                  onClick={() => handleExport('csv')}
+                  disabled={exporting}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 disabled:opacity-50"
                 >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-emerald-600" />}
                   CSV / Excel
                 </button>
                 <button
-                  onClick={() => { exportGeoJson(sorted); setExportOpen(false); }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50"
+                  onClick={() => handleExport('geojson')}
+                  disabled={exporting}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-50 disabled:opacity-50"
                 >
-                  <MapIcon className="h-4 w-4 text-blue-600" /> GeoJSON
+                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapIcon className="h-4 w-4 text-blue-600" />} GeoJSON
                 </button>
                 <button
                   disabled
@@ -447,7 +442,7 @@ export function DispoDamagesPage() {
               {(error as Error).message}
             </div>
           )}
-          {!isLoading && sorted.length === 0 && (
+          {!isLoading && total === 0 && (
             <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
               {hasAnyFilter ? 'Keine Treffer mit diesen Filtern.' : 'Noch keine Schäden erfasst.'}
             </div>
@@ -538,7 +533,7 @@ export function DispoDamagesPage() {
                 {error && (
                   <tr><td colSpan={8} className="px-4 py-6 text-center text-red-600">{(error as Error).message}</td></tr>
                 )}
-                {!isLoading && sorted.length === 0 && (
+                {!isLoading && total === 0 && (
                   <tr><td colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                     {hasAnyFilter ? 'Keine Treffer mit diesen Filtern.' : 'Noch keine Schäden erfasst.'}
                   </td></tr>
@@ -608,7 +603,7 @@ export function DispoDamagesPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">
-              {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} von {sorted.length}
+              {total === 0 ? 0 : page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} von {total.toLocaleString("de-DE")}
             </span>
             <button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
@@ -634,7 +629,9 @@ export function DispoDamagesPage() {
         <div className="overflow-hidden rounded-xl border bg-white lg:col-span-2">
           <div className="border-b px-3 py-2 text-xs text-muted-foreground flex items-center gap-1.5">
             <FilterIcon className="h-3 w-3" />
-            {filtered.length} Pin{filtered.length === 1 ? '' : 's'} sichtbar (synchron zur Liste)
+            {mapItems.length} Pin{mapItems.length === 1 ? '' : 's'} im Kartenausschnitt
+            {mapFetching && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
+            {mapCapped && <span className="text-amber-600">· Limit erreicht, reinzoomen für Details</span>}
           </div>
           <div className="h-[600px]">
             <DamagesMap
@@ -643,24 +640,14 @@ export function DispoDamagesPage() {
               selectedId={selectedId}
               onPinClick={(id) => nav(`/dispo/damages/${id}`)}
               layers={layers}
+              autoFit={false}
+              onViewChange={(b) => handleMapView(b)}
             />
           </div>
         </div>
       </div>
     </AppShell>
   );
-}
-
-function sortValue(d: DamageListItem, key: SortKey): string | number | null {
-  switch (key) {
-    case 'code': return d.code;
-    case 'created_at': return d.created_at;
-    case 'category_name': return d.category_name ?? '';
-    case 'address': return [d.address_street, d.address_city].filter(Boolean).join(', ') || '';
-    case 'creator_name': return d.creator_name ?? '';
-    case 'priority': return PRIO_ORDER[d.priority] ?? -1;
-    case 'status': return STATUS_ORDER[d.status] ?? -1;
-  }
 }
 
 function SortableHead({

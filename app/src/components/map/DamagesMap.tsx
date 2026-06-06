@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapContainer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
@@ -94,6 +94,19 @@ function FitBounds({ items }: { items: DamageListItem[] }) {
   return null;
 }
 
+function ViewTracker({ onChange }: { onChange: (b: L.LatLngBounds, z: number) => void }) {
+  const map = useMapEvents({
+    moveend: () => onChange(map.getBounds(), map.getZoom()),
+    zoomend: () => onChange(map.getBounds(), map.getZoom()),
+  });
+  useEffect(() => {
+    const t = setTimeout(() => onChange(map.getBounds(), map.getZoom()), 200);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
 /** Netz-Toggle-Button als Leaflet-Control */
 function NetworkToggle({ show, onToggle }: { show: boolean; onToggle: () => void }) {
   return (
@@ -136,9 +149,16 @@ interface Props {
   onPinClick?: (id: string) => void;
   layers?: MapLayer[];
   className?: string;
+  /** Auto-Fit auf items (Default true). Bei Viewport-Laden auf false. */
+  autoFit?: boolean;
+  /** Meldet Kartenausschnitt + Zoom (für serverseitiges Viewport-Laden) */
+  onViewChange?: (bounds: L.LatLngBounds, zoom: number) => void;
 }
 
-export function DamagesMap({ center, items, selectedId, onPinClick, layers, className }: Props) {
+export function DamagesMap({
+  center, items, selectedId, onPinClick, layers, className,
+  autoFit = true, onViewChange,
+}: Props) {
   const { data: segments = [] } = useNetworkSegments();
   const { query: objQuery } = useNetworkObjects();
   const networkObjects = objQuery.data ?? [];
@@ -149,7 +169,8 @@ export function DamagesMap({ center, items, selectedId, onPinClick, layers, clas
   return (
     <div className={`relative ${className ?? 'h-full w-full'}`}>
       <MapContainer center={center} zoom={13} maxZoom={22} scrollWheelZoom className="h-full w-full">
-        <FitBounds items={items} />
+        {autoFit && <FitBounds items={items} />}
+        {onViewChange && <ViewTracker onChange={onViewChange} />}
         <MapLayerSwitcher layers={layers} maxZoom={22} />
         {showNetwork && <NetworkLayer segments={segments} />}
         {showNetwork && <NetworkAreaLayer />}
