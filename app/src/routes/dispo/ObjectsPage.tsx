@@ -167,7 +167,7 @@ export function DispoObjectsPage() {
               <ObjectsMap
                 objects={filtered}
                 selectedId={selectedId}
-                onObjectClick={(id) => { setSelectedId(id); }}
+                onObjectClick={(id) => nav(`/dispo/objects/${id}`)}
               />
             )}
           </div>
