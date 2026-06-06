@@ -41,10 +41,10 @@ const ACCENT: Record<NonNullable<Props['accent']>, string> = {
 };
 
 // =============================================================================
-//  ROLE-SWITCHER (Desktop-Top + Mobile-Bottom)
+//  BEREICHE (Top-Level-Navigation zwischen Rollen-Arealen)
 // =============================================================================
 
-interface RoleTab {
+interface AreaTab {
   to: string;
   icon: LucideIcon;
   label: string;
@@ -53,14 +53,41 @@ interface RoleTab {
   prefix: string;
 }
 
-const TAB_DASHBOARD: RoleTab = { to: '/dispo/dashboard', icon: LayoutDashboard, label: 'Dashboard', emoji: '🖥️', prefix: '/dispo/dashboard' };
-const TAB_DAMAGES: RoleTab   = { to: '/dispo/damages',   icon: AlertTriangle,   label: 'Schäden',   emoji: '⚠️', prefix: '/dispo/damages' };
-const TAB_ORDERS: RoleTab    = { to: '/dispo/orders',    icon: ClipboardList,   label: 'Aufträge',  emoji: '📋', prefix: '/dispo/orders' };
-const TAB_ERFASSER: RoleTab  = { to: '/erfasser',        icon: Camera,          label: 'Erfassen',  emoji: '📱', prefix: '/erfasser' };
-const TAB_FIRMA: RoleTab     = { to: '/firma/orders',    icon: HardHat,         label: 'Aufträge',  emoji: '🏗️', prefix: '/firma' };
-const TAB_ADMIN: RoleTab     = { to: '/admin/users',     icon: Settings,        label: 'Admin',     emoji: '⚙️', prefix: '/admin' };
-const TAB_ERFASSER_HOME: RoleTab = { to: '/erfasser',     icon: Camera,          label: 'Start',     emoji: '📱', prefix: '/erfasser' };
-const TAB_ERFASSER_LIST: RoleTab = { to: '/erfasser/list', icon: List,           label: 'Liste',     emoji: '📋', prefix: '/erfasser/list' };
+const AREA_DISPO:    AreaTab = { to: '/dispo/dashboard', icon: LayoutDashboard, label: 'Disposition',    emoji: '🖥️', prefix: '/dispo' };
+const AREA_ERFASSEN: AreaTab = { to: '/erfasser',        icon: Camera,          label: 'Erfassen',       emoji: '📱', prefix: '/erfasser' };
+const AREA_FIRMA:    AreaTab = { to: '/firma/orders',    icon: HardHat,         label: 'Firma',          emoji: '🏗️', prefix: '/firma' };
+const AREA_ADMIN:    AreaTab = { to: '/admin/users',     icon: Settings,        label: 'Administration', emoji: '⚙️', prefix: '/admin' };
+
+/** Areale, die die Rolle erreichen darf */
+function areasForRole(role: UserRole | undefined): AreaTab[] {
+  switch (role) {
+    case 'admin':       return [AREA_DISPO, AREA_ERFASSEN, AREA_FIRMA, AREA_ADMIN];
+    case 'dispatcher':  return [AREA_DISPO, AREA_ERFASSEN];
+    case 'field_worker':return [AREA_ERFASSEN];
+    case 'company_user':return [AREA_FIRMA];
+    default:            return [];
+  }
+}
+
+// =============================================================================
+//  MOBILE BOTTOM-NAV  (granulare Tabs — unverändertes Verhalten)
+// =============================================================================
+
+interface RoleTab {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  prefix: string;
+}
+
+const TAB_DASHBOARD: RoleTab = { to: '/dispo/dashboard', icon: LayoutDashboard, label: 'Dashboard', prefix: '/dispo/dashboard' };
+const TAB_DAMAGES: RoleTab   = { to: '/dispo/damages',   icon: AlertTriangle,   label: 'Schäden',   prefix: '/dispo/damages' };
+const TAB_ORDERS: RoleTab    = { to: '/dispo/orders',    icon: ClipboardList,   label: 'Aufträge',  prefix: '/dispo/orders' };
+const TAB_ERFASSER: RoleTab  = { to: '/erfasser',        icon: Camera,          label: 'Erfassen',  prefix: '/erfasser' };
+const TAB_FIRMA: RoleTab     = { to: '/firma/orders',    icon: HardHat,         label: 'Aufträge',  prefix: '/firma' };
+const TAB_ADMIN: RoleTab     = { to: '/admin/users',     icon: Settings,        label: 'Admin',     prefix: '/admin' };
+const TAB_ERFASSER_HOME: RoleTab = { to: '/erfasser',     icon: Camera,          label: 'Start',     prefix: '/erfasser' };
+const TAB_ERFASSER_LIST: RoleTab = { to: '/erfasser/list', icon: List,           label: 'Liste',     prefix: '/erfasser/list' };
 
 function navForRole(role: UserRole | undefined): RoleTab[] {
   switch (role) {
@@ -83,35 +110,108 @@ function isActive(pathname: string, prefix: string): boolean {
 }
 
 // =============================================================================
-//  DESKTOP-ROLLEN-SWITCHER (Top-Tabs)
+//  DESKTOP-SIDEBAR  (alles in der linken Leiste, keine Top-Bar)
 // =============================================================================
 
-function DesktopRoleSwitcher() {
-  const { profile } = useAuth();
+function DesktopSidebar({
+  title, subtitle, accent, sidebar,
+}: {
+  title: string;
+  subtitle?: string;
+  accent: NonNullable<Props['accent']>;
+  sidebar?: NavItem[];
+}) {
+  const { profile, signOut } = useAuth();
   const location = useLocation();
-  if (!profile) return null;
-  const tabs = navForRole(profile.role);
-  if (tabs.length <= 1) return null;
+  const areas = areasForRole(profile?.role);
+
   return (
-    <nav className="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
-      {tabs.map((t) => {
-        const active = isActive(location.pathname, t.prefix);
-        return (
-          <Link
-            key={t.to}
-            to={t.to}
-            className={`rounded-md px-3 py-1.5 transition ${
-              active
-                ? 'bg-white font-semibold text-blue-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <span className="mr-1">{t.emoji}</span>
-            {t.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r bg-white md:flex">
+      {/* Marke */}
+      <div className="flex items-center gap-2.5 border-b px-4 py-3">
+        <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${ACCENT[accent]}`}>
+          <Construction className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-semibold">{title}</h1>
+          <div className="truncate text-xs text-muted-foreground">{subtitle ?? 'Bauhof Erfurt'}</div>
+        </div>
+      </div>
+
+      {/* Scrollbarer Navigationsbereich */}
+      <div className="flex-1 overflow-y-auto py-3">
+        {/* Bereiche (nur wenn mehr als einer erreichbar) */}
+        {areas.length > 1 && (
+          <div className="px-2">
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Bereiche
+            </div>
+            <nav className="space-y-0.5">
+              {areas.map((a) => {
+                const active = isActive(location.pathname, a.prefix);
+                return (
+                  <Link
+                    key={a.to}
+                    to={a.to}
+                    className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition ${
+                      active ? 'bg-blue-50 font-semibold text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <a.icon className="h-4 w-4" />
+                    {a.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
+
+        {/* Aktuelle Sektion */}
+        {sidebar && sidebar.length > 0 && (
+          <div className={`px-2 ${areas.length > 1 ? 'mt-4' : ''}`}>
+            <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              Navigation
+            </div>
+            <nav className="space-y-0.5">
+              {sidebar.map((item) => {
+                const matchPath = item.match ?? item.to;
+                const active =
+                  location.pathname === item.to || location.pathname.startsWith(matchPath + '/');
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm ${
+                      active ? 'bg-blue-50 font-medium text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        )}
+      </div>
+
+      {/* Nutzer + Abmelden (unten) */}
+      <div className="border-t px-3 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium">{profile?.full_name ?? '—'}</div>
+            <div className="truncate text-xs text-muted-foreground">{profile?.role}</div>
+          </div>
+          <SyncIndicator variant="desktop" />
+        </div>
+        <button
+          onClick={signOut}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs hover:bg-slate-50"
+        >
+          <LogOut className="h-3.5 w-3.5" /> Abmelden
+        </button>
+      </div>
+    </aside>
   );
 }
 
@@ -246,84 +346,40 @@ function MobileSubNav({ items }: { items: NavItem[] }) {
 // =============================================================================
 
 export function AppShell({ title, subtitle, accent = 'blue', sidebar, children }: Props) {
-  const { profile, signOut } = useAuth();
-  const location = useLocation();
+  const { profile } = useAuth();
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* ===== TOP-HEADER ===== */}
-      <header className="sticky top-0 z-40 border-b bg-white">
-        <div className="flex w-full items-center justify-between gap-3 px-3 py-2.5 md:gap-4 md:px-6 md:py-3">
-          <div className="flex min-w-0 items-center gap-2.5 md:gap-3">
-            <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg md:h-9 md:w-9 ${ACCENT[accent]}`}>
-              <Construction className="h-4 w-4 text-white md:h-5 md:w-5" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold">{title}</h1>
-              <div className="truncate text-xs text-muted-foreground">{subtitle ?? 'Bauhof Erfurt'}</div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-slate-50 md:flex">
+      {/* ===== DESKTOP-SIDEBAR (alles links) ===== */}
+      <DesktopSidebar title={title} subtitle={subtitle} accent={accent} sidebar={sidebar} />
 
-          {/* Desktop Role-Switcher */}
-          <div className="hidden md:block">
-            <DesktopRoleSwitcher />
-          </div>
-
-          <div className="flex items-center gap-2 md:gap-3">
-            <SyncIndicator variant="desktop" />
-            {/* Desktop User-Bereich + Logout */}
-            <div className="hidden items-center gap-2 md:flex">
-              <div className="text-right">
-                <div className="text-sm font-medium">{profile?.full_name ?? '—'}</div>
-                <div className="text-xs text-muted-foreground">{profile?.role}</div>
+      {/* ===== RECHTE SPALTE: Mobile-Header + Inhalt ===== */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        {/* Mobile-Header (nur < md) */}
+        <header className="sticky top-0 z-40 border-b bg-white md:hidden">
+          <div className="flex w-full items-center justify-between gap-3 px-3 py-2.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${ACCENT[accent]}`}>
+                <Construction className="h-4 w-4 text-white" />
               </div>
-              <button
-                onClick={signOut}
-                className="flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs hover:bg-slate-50"
-              >
-                <LogOut className="h-3.5 w-3.5" /> Abmelden
-              </button>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-semibold">{title}</h1>
+                <div className="truncate text-xs text-muted-foreground">{subtitle ?? 'Bauhof Erfurt'}</div>
+              </div>
             </div>
-            {/* Mobile: nur Avatar als Profil-Link */}
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white md:hidden">
-              {initials(profile?.full_name)}
+            <div className="flex items-center gap-2">
+              <SyncIndicator variant="desktop" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+                {initials(profile?.full_name)}
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* ===== MOBILE SUB-NAV (Sidebar als Pills) ===== */}
-      {sidebar && sidebar.length > 0 && <MobileSubNav items={sidebar} />}
+        {/* Mobile Sub-Nav (Sektion als Pills) */}
+        {sidebar && sidebar.length > 0 && <MobileSubNav items={sidebar} />}
 
-      <div className="flex w-full">
-        {/* ===== DESKTOP SIDEBAR ===== */}
-        {sidebar && sidebar.length > 0 && (
-          <aside className="hidden w-56 flex-shrink-0 border-r bg-white py-4 md:block">
-            <nav className="space-y-0.5 px-2">
-              {sidebar.map((item) => {
-                const matchPath = item.match ?? item.to;
-                const active =
-                  location.pathname === item.to || location.pathname.startsWith(matchPath + '/');
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm ${
-                      active
-                        ? 'bg-blue-50 font-medium text-blue-700'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </aside>
-        )}
-
-        {/* ===== CONTENT ===== */}
+        {/* Inhalt */}
         {/* min-w-0 ist wichtig — sonst sprengen child-Tabellen den Flex-Container */}
         <main className="main-content min-w-0 flex-1 px-3 py-4 md:px-6 md:py-6">{children}</main>
       </div>
