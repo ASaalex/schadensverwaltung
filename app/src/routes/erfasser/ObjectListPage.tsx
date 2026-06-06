@@ -66,7 +66,7 @@ export function ErfasserObjectListPage() {
               return (
                 <button
                   key={o.id}
-                  onClick={() => nav(`/dispo/objects/${o.id}/history`)}
+                  onClick={() => nav(`/dispo/objects/${o.id}`)}
                   className="flex w-full items-center gap-3 rounded-xl bg-white p-3 shadow-sm text-left active:scale-[0.98] transition hover:bg-slate-50"
                 >
                   <span

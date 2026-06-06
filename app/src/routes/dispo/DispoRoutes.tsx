@@ -9,6 +9,9 @@ import { DispoOrderDetailPage } from './OrderDetailPage';
 import { DispoOrderPrintPage } from './OrderPrintPage';
 import { DispoImportPage } from './ImportPage';
 import { ObjectHistoryPage } from './ObjectHistoryPage';
+import { DispoObjectsPage } from './ObjectsPage';
+import { DispoObjectDetailPage } from './ObjectDetailPage';
+import { DispoObjectPrintPage } from './ObjectPrintPage';
 
 export function DispoRoutes() {
   return (
@@ -23,6 +26,9 @@ export function DispoRoutes() {
       <Route path="orders/:id"        element={<DispoOrderDetailPage />} />
       <Route path="orders/:id/print"  element={<DispoOrderPrintPage />} />
       <Route path="import"             element={<DispoImportPage />} />
+      <Route path="objects"             element={<DispoObjectsPage />} />
+      <Route path="objects/:id"         element={<DispoObjectDetailPage />} />
+      <Route path="objects/:id/print"   element={<DispoObjectPrintPage />} />
       <Route path="objects/:id/history" element={<ObjectHistoryPage />} />
       <Route path="*"         element={<Navigate to="/dispo/dashboard" replace />} />
     </Routes>

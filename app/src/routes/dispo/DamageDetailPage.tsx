@@ -453,9 +453,9 @@ export function DispoDamageDetailPage() {
                         <div className="flex items-center gap-1.5 text-xs font-semibold text-violet-700">
                           <Box className="h-3.5 w-3.5" /> Netz-Objekt
                         </div>
-                        <Link to={`/dispo/objects/${linkedObject.id}/history`}
+                        <Link to={`/dispo/objects/${linkedObject.id}`}
                           className="text-[11px] text-violet-600 underline hover:text-violet-800">
-                          Objekt-Historie →
+                          Objekt öffnen →
                         </Link>
                       </div>
                       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
