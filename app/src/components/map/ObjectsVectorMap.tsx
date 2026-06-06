@@ -3,32 +3,14 @@
  * Tiles kommen über supabase.rpc('objects_mvt', {z,x,y}) — kein Tile-Server,
  * RLS (Firma) greift automatisch. Skaliert auf sehr viele Objekte.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl, { Map as MlMap, type MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Crosshair } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { Crosshair, Layers } from 'lucide-react';
 import { useGpsWatch } from '@/hooks/useGeolocation';
-
-// ── Tile-Protocol einmalig registrieren ───────────────────────────────────────
-let protocolRegistered = false;
-function registerObjectTileProtocol() {
-  if (protocolRegistered) return;
-  protocolRegistered = true;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (maplibregl as any).addProtocol('objtiles', async (params: { url: string }) => {
-    const [z, x, y] = params.url.replace('objtiles://', '').split('/').map(Number);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('objects_mvt', { z, x, y });
-    if (error) throw new Error(error.message);
-    const b64 = (data as string) ?? '';
-    if (!b64) return { data: new Uint8Array(0) };
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return { data: bytes };
-  });
-}
+import { useMapLayers } from '@/hooks/useMapLayers';
+import { buildBasemaps } from './maplibreBasemaps';
+import { registerObjectTileProtocol } from './objectTileProtocol';
 
 const OSM_STYLE: maplibregl.StyleSpecification = {
   version: 8,
@@ -65,7 +47,19 @@ export function ObjectsVectorMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
   const gpsCenteredRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
   const { position } = useGpsWatch(!!showGps);
+  const { data: mapLayers } = useMapLayers();
+
+  const basemaps = useMemo(() => buildBasemaps(mapLayers), [mapLayers]);
+  const [activeBase, setActiveBase] = useState<string>('osm');
+  const baseInitRef = useRef(false);
+  // Default-Basemap aus Konfiguration übernehmen (einmalig)
+  useEffect(() => {
+    if (baseInitRef.current || !mapLayers) return;
+    const def = mapLayers.find((l) => l.is_default && l.enabled);
+    if (def) { setActiveBase(def.id); baseInitRef.current = true; }
+  }, [mapLayers]);
 
   // Karte initialisieren
   useEffect(() => {
@@ -133,6 +127,7 @@ export function ObjectsVectorMap({
         });
       }
 
+      setMapReady(true);
       emitView();
     });
 
@@ -161,6 +156,34 @@ export function ObjectsVectorMap({
     return () => { map.remove(); mapRef.current = null; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Basemaps anlegen/umschalten (Raster-Layer unter die Objekt-Layer)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+
+    for (const bm of basemaps) {
+      if (bm.id === 'osm') continue; // OSM ist Teil des Initial-Styles
+      const srcId = `base-src-${bm.id}`;
+      const lyrId = `base-${bm.id}`;
+      if (!map.getSource(srcId)) map.addSource(srcId, bm.source);
+      if (!map.getLayer(lyrId)) {
+        map.addLayer(
+          { id: lyrId, type: 'raster', source: srcId, layout: { visibility: 'none' } },
+          'obj-fill', // unter den Objekt-Layern einfügen
+        );
+      }
+    }
+    // Sichtbarkeit setzen: nur aktive Basemap an
+    map.setLayoutProperty('osm', 'visibility', activeBase === 'osm' ? 'visible' : 'none');
+    for (const bm of basemaps) {
+      if (bm.id === 'osm') continue;
+      const lyrId = `base-${bm.id}`;
+      if (map.getLayer(lyrId)) {
+        map.setLayoutProperty(lyrId, 'visibility', activeBase === bm.id ? 'visible' : 'none');
+      }
+    }
+  }, [basemaps, activeBase, mapReady]);
 
   // Hervorhebung aktualisieren
   useEffect(() => {
@@ -201,9 +224,26 @@ export function ObjectsVectorMap({
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
+
+      {/* Basemap-Switcher (oben rechts) */}
+      {basemaps.length > 1 && (
+        <div className="absolute right-3 top-3 z-10 overflow-hidden rounded-lg bg-white shadow-lg">
+          <div className="flex items-center gap-1 border-b bg-slate-50 px-2 py-1 text-xs text-slate-500">
+            <Layers className="h-3 w-3" /> Karte
+          </div>
+          {basemaps.map((bm) => (
+            <button key={bm.id} onClick={() => setActiveBase(bm.id)}
+              className={`block w-full px-3 py-1.5 text-left text-xs ${activeBase === bm.id ? 'bg-blue-50 font-medium text-blue-700' : 'hover:bg-slate-50'}`}>
+              {activeBase === bm.id ? '●' : '○'} {bm.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* GPS-Recenter (unten links, kollidiert nicht mit Switcher/Zoom) */}
       {showGps && (
         <button onClick={recenter}
-          className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg active:scale-95"
+          className="absolute bottom-3 left-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg active:scale-95"
           title="Auf meine Position zentrieren">
           <Crosshair className="h-5 w-5 text-blue-600" />
         </button>
