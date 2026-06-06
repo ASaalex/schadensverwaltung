@@ -3,7 +3,7 @@
  * Zeigt Netz-Objekte (Punkt/Linie/Fläche), anwählbar, mit Layer-Switcher.
  */
 import { useEffect } from 'react';
-import { MapContainer, useMap } from 'react-leaflet';
+import { MapContainer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { NetworkObjectLayer } from './NetworkObjectLayer';
@@ -18,6 +18,23 @@ interface Props {
   fitToId?: string | null;
   center?: [number, number];
   zoom?: number;
+  /** Auto-Fit auf Objekte (Default true). Bei Viewport-Laden auf false setzen. */
+  autoFit?: boolean;
+  /** Meldet Kartenausschnitt + Zoom (für serverseitiges Viewport-Laden) */
+  onViewChange?: (bounds: L.LatLngBounds, zoom: number) => void;
+}
+
+function ViewTracker({ onChange }: { onChange: (b: L.LatLngBounds, z: number) => void }) {
+  const map = useMapEvents({
+    moveend: () => onChange(map.getBounds(), map.getZoom()),
+    zoomend: () => onChange(map.getBounds(), map.getZoom()),
+  });
+  useEffect(() => {
+    const t = setTimeout(() => onChange(map.getBounds(), map.getZoom()), 200);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
 }
 
 function InvalidateOnMount() {
@@ -61,7 +78,10 @@ function FitBounds({ objects, fitToId }: { objects: NetworkObject[]; fitToId?: s
   return null;
 }
 
-export function ObjectsMap({ objects, selectedId, onObjectClick, fitToId, center, zoom = 14 }: Props) {
+export function ObjectsMap({
+  objects, selectedId, onObjectClick, fitToId, center, zoom = 14,
+  autoFit = true, onViewChange,
+}: Props) {
   const { data: layers } = useMapLayers();
 
   const initialCenter: [number, number] = center
@@ -70,7 +90,8 @@ export function ObjectsMap({ objects, selectedId, onObjectClick, fitToId, center
   return (
     <MapContainer center={initialCenter} zoom={zoom} maxZoom={22} className="h-full w-full">
       <InvalidateOnMount />
-      <FitBounds objects={objects} fitToId={fitToId} />
+      {autoFit && <FitBounds objects={objects} fitToId={fitToId} />}
+      {onViewChange && <ViewTracker onChange={onViewChange} />}
       <MapLayerSwitcher layers={layers} maxZoom={22} />
       <NetworkObjectLayer objects={objects} selectedId={selectedId} onObjectClick={onObjectClick} />
     </MapContainer>
