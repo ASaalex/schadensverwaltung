@@ -10,7 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useNetworkObjectTypes, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
-import { LeafletMap } from '@/components/map/LeafletMap';
+import { PositionMap } from '@/components/map/PositionMap';
 import {
   ArrowLeft, X, MapPin, CheckCircle2, Loader2,
   ChevronRight, Box, Navigation, Minus, Hexagon, Edit3, AlertCircle,
@@ -259,13 +259,17 @@ export function ErfasserObjectNewPage() {
 
         {/* Karte (volle Höhe) */}
         {(!gpsLoading || position) && (
-        <div className="flex-1 overflow-hidden rounded-t-2xl border-t">
-          <LeafletMap
+        <div className="flex-1 overflow-hidden">
+          <PositionMap
             center={[displayPos.lat, displayPos.lng]}
             zoom={18}
-            markerPosition={[displayPos.lat, displayPos.lng]}
-            zoomable={true}
-            showLayerSwitcher={false}
+            markerLat={displayPos.lat}
+            markerLng={displayPos.lng}
+            onMarkerMove={(lat, lng) => {
+              setEditingPos(true);
+              setEditLat(lat.toFixed(6));
+              setEditLng(lng.toFixed(6));
+            }}
           />
         </div>
         )}
