@@ -4,12 +4,12 @@
  * - rendert Objekte NUR im sichtbaren Kartenausschnitt und erst ab einem
  *   Zoomlevel (Performance bei vielen Objekten)
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { Crosshair, Loader2 } from 'lucide-react';
 import { NetworkObjectLayer } from './NetworkObjectLayer';
-import { objectCenter, type NetworkObject } from '@/hooks/useNetworkObjects';
+import { useObjectsInBounds, type Bounds } from '@/hooks/useObjectsInBounds';
 import { useGpsWatch } from '@/hooks/useGeolocation';
 
 /** Ab diesem Zoom werden Objekte geladen/angezeigt */
@@ -17,7 +17,6 @@ const ZOOM_THRESHOLD = 15;
 const DEFAULT_CENTER: [number, number] = [50.9787, 11.0328];
 
 interface Props {
-  objects: NetworkObject[];
   onObjectClick: (id: string) => void;
 }
 
@@ -74,21 +73,24 @@ function LocateButton({ pos }: { pos: { lat: number; lng: number } | null }) {
 
 // ── Hauptkomponente ───────────────────────────────────────────────────────────
 
-export function ErfasserObjectsMap({ objects, onObjectClick }: Props) {
+export function ErfasserObjectsMap({ onObjectClick }: Props) {
   const { position } = useGpsWatch(true);
   const autoCenteredRef = useRef(false);
   const [view, setView] = useState<{ bounds: L.LatLngBounds | null; zoom: number }>({ bounds: null, zoom: 13 });
 
-  const visible = useMemo(() => {
-    if (!view.bounds || view.zoom < ZOOM_THRESHOLD) return [];
-    const b = view.bounds;
-    return objects.filter((o) => {
-      const [lng, lat] = objectCenter(o);
-      return b.contains([lat, lng]);
-    });
-  }, [objects, view]);
-
   const tooFarOut = view.zoom < ZOOM_THRESHOLD;
+
+  // Viewport-Bounds in DB-Format; nur abfragen, wenn nah genug reingezoomt
+  const queryBounds: Bounds | null = view.bounds
+    ? {
+        minLng: view.bounds.getWest(),
+        minLat: view.bounds.getSouth(),
+        maxLng: view.bounds.getEast(),
+        maxLat: view.bounds.getNorth(),
+      }
+    : null;
+  const { data: objects = [], isFetching } = useObjectsInBounds(queryBounds, !tooFarOut);
+
   const initialCenter: [number, number] = position ? [position.lat, position.lng] : DEFAULT_CENTER;
 
   return (
@@ -98,7 +100,7 @@ export function ErfasserObjectsMap({ objects, onObjectClick }: Props) {
         <ViewportTracker onChange={(bounds, zoom) => setView({ bounds, zoom })} />
         <GpsMarker pos={position} autoCenteredRef={autoCenteredRef} />
         <LocateButton pos={position} />
-        {!tooFarOut && <NetworkObjectLayer objects={visible} onObjectClick={onObjectClick} />}
+        {!tooFarOut && <NetworkObjectLayer objects={objects} onObjectClick={onObjectClick} />}
       </MapContainer>
 
       {/* Status-Badge oben links */}
@@ -108,7 +110,10 @@ export function ErfasserObjectsMap({ objects, onObjectClick }: Props) {
             🔍 Reinzoomen, um Objekte zu sehen
           </span>
         ) : (
-          <span className="font-medium text-slate-700">{visible.length} Objekt{visible.length === 1 ? '' : 'e'} im Ausschnitt</span>
+          <span className="flex items-center gap-1.5 font-medium text-slate-700">
+            {isFetching && <Loader2 className="h-3 w-3 animate-spin text-blue-500" />}
+            {objects.length} Objekt{objects.length === 1 ? '' : 'e'} im Ausschnitt
+          </span>
         )}
       </div>
 
