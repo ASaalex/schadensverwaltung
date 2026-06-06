@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { Modal } from '@/components/ui/Modal';
@@ -64,6 +64,10 @@ const EVENT_META: Record<string, { icon: LucideIcon; color: string; label: strin
 
 export function DispoDamageDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navState = (location.state ?? null) as { from?: string; fromLabel?: string } | null;
+  const backTo = navState?.from ?? '/dispo/damages';
+  const backLabel = navState?.fromLabel ?? 'Zurück zur Liste';
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data, isLoading, error } = useDamageDetail(id);
@@ -94,8 +98,8 @@ export function DispoDamageDetailPage() {
 
   return (
     <AppShell title="Disposition" subtitle="Schadendetail" sidebar={DISPO_SIDEBAR}>
-      <Link to="/dispo/damages" className="mb-3 flex items-center gap-1 text-sm text-slate-500">
-        <ArrowLeft className="h-4 w-4" /> Zurück zur Liste
+      <Link to={backTo} className="mb-3 flex items-center gap-1 text-sm text-slate-500">
+        <ArrowLeft className="h-4 w-4" /> {backLabel}
       </Link>
 
       {isLoading && <div className="text-sm text-muted-foreground">Lade …</div>}

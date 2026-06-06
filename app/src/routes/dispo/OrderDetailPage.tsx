@@ -283,7 +283,9 @@ export function DispoOrderDetailPage() {
               {data.positions.map((p) => (
                 <div
                   key={p.id}
-                  onClick={() => nav(`/dispo/damages/${p.damage_id}`)}
+                  onClick={() => nav(`/dispo/damages/${p.damage_id}`, {
+                    state: { from: `/dispo/orders/${id}`, fromLabel: `Zurück zum Auftrag ${data.code}` },
+                  })}
                   className="flex cursor-pointer items-center gap-3 border-b px-4 py-3 hover:bg-slate-50 last:border-b-0"
                 >
                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-700">
