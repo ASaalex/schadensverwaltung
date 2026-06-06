@@ -9,11 +9,12 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
 import { useNetworkObjectTypes, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { uploadObjectFile } from '@/hooks/useObjectDocuments';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
 import { PositionMap } from '@/components/map/PositionMap';
 import {
   ArrowLeft, X, MapPin, CheckCircle2, Loader2,
-  ChevronRight, Box, Navigation, Minus, Hexagon, Edit3, AlertCircle,
+  ChevronRight, Box, Navigation, Minus, Hexagon, Edit3, AlertCircle, Camera,
 } from 'lucide-react';
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 
@@ -60,6 +61,21 @@ export function ErfasserObjectNewPage() {
   const [editingPos, setEditingPos] = useState(false);
   const [editLat, setEditLat] = useState('');
   const [editLng, setEditLng] = useState('');
+  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
+  const [photoUploadInfo, setPhotoUploadInfo] = useState<string | null>(null);
+
+  function addPhotos(files: FileList | null) {
+    if (!files) return;
+    const next = Array.from(files).map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    setPhotos((p) => [...p, ...next]);
+  }
+  function removePhoto(idx: number) {
+    setPhotos((p) => {
+      const ph = p[idx];
+      if (ph) URL.revokeObjectURL(ph.preview);
+      return p.filter((_, i) => i !== idx);
+    });
+  }
 
   // GPS beim Laden starten (nur einmal)
   useEffect(() => {
@@ -145,11 +161,29 @@ export function ErfasserObjectNewPage() {
       }
 
       console.log('[ObjectSave] Verifiziert gespeichert:', data.id);
+
+      // Fotos hochladen (best-effort, blockiert das Speichern nicht hart)
+      if (photos.length > 0) {
+        setPhotoUploadInfo(`Lade ${photos.length} Foto(s) hoch …`);
+        let ok = 0;
+        for (let i = 0; i < photos.length; i++) {
+          try {
+            setPhotoUploadInfo(`Foto ${i + 1}/${photos.length} wird hochgeladen …`);
+            await uploadObjectFile(profile.company_id, data.id, photos[i].file, profile.id);
+            ok++;
+          } catch (e) {
+            console.error('[ObjectSave] Foto-Upload fehlgeschlagen:', e);
+          }
+        }
+        setPhotoUploadInfo(ok === photos.length ? null : `${ok}/${photos.length} Fotos hochgeladen`);
+      }
+
       return data.id as string;
     },
     onSuccess: (id) => {
       setSavedCode(id.slice(0, 8).toUpperCase());
       qc.invalidateQueries({ queryKey: ['network-objects'] });
+      qc.invalidateQueries({ queryKey: ['object-documents', id] });
       setStep('done');
     },
   });
@@ -157,6 +191,9 @@ export function ErfasserObjectNewPage() {
   function reset() {
     setStep('type'); setSelType(null);
     setName(''); setKennung(''); setGeomPts([]);
+    photos.forEach((p) => URL.revokeObjectURL(p.preview));
+    setPhotos([]);
+    setPhotoUploadInfo(null);
     setSavedCode(null);
     startGps();
   }
@@ -411,8 +448,37 @@ export function ErfasserObjectNewPage() {
             />
           </div>
         </div>
+
+        {/* Fotos */}
+        <div className="rounded-xl border bg-white p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">Fotos {photos.length > 0 && `(${photos.length})`}</label>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {photos.map((p, i) => (
+              <div key={i} className="relative aspect-square overflow-hidden rounded-lg border">
+                <img src={p.preview} alt="" className="h-full w-full object-cover" />
+                <button onClick={() => removePhoto(i)}
+                  className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+            {/* Kamera-Button */}
+            <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-300 text-slate-400 active:scale-95 transition">
+              <Camera className="h-6 w-6" />
+              <span className="text-[10px]">Foto</span>
+              <input type="file" accept="image/*" capture="environment" multiple className="hidden"
+                onChange={(e) => { addPhotos(e.target.files); e.target.value = ''; }} />
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Kamera öffnen oder aus Galerie wählen. Fotos werden beim Speichern hochgeladen.
+          </p>
+        </div>
+
         <p className="text-xs text-muted-foreground text-center">
-          Beide Felder sind optional. Du kannst das Objekt auch ohne Angaben erfassen.
+          Alle Angaben sind optional. Du kannst das Objekt auch ohne erfassen.
         </p>
       </div>
 
@@ -505,6 +571,7 @@ export function ErfasserObjectNewPage() {
         <>
           <Loader2 className="mb-4 h-12 w-12 animate-spin text-blue-500" />
           <div className="text-lg font-semibold">Objekt wird gespeichert …</div>
+          {photoUploadInfo && <div className="mt-2 text-sm text-muted-foreground">{photoUploadInfo}</div>}
         </>
       ) : saveMut.isError ? (
         <>

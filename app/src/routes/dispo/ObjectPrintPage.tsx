@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useNetworkObjects } from '@/hooks/useNetworkObjects';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
-import { useObjectDocuments } from '@/hooks/useObjectDocuments';
+import { useObjectDocuments, isImage } from '@/hooks/useObjectDocuments';
 import { usePrintConfig } from '@/hooks/usePrintConfig';
 import { supabase } from '@/lib/supabase';
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
@@ -22,9 +22,29 @@ export function DispoObjectPrintPage() {
   const { query: objQ } = useNetworkObjects();
   const { query: typeQ } = useNetworkObjectTypes();
   const { data: printConfig } = usePrintConfig();
-  const { query: docsQ } = useObjectDocuments(id);
+  const { query: docsQ, getUrl } = useObjectDocuments(id);
   const obj = objQ.data?.find((o) => o.id === id);
   const type = typeQ.data?.find((t) => t.id === obj?.object_type_id);
+
+  const allDocs = docsQ.data ?? [];
+  const images = allDocs.filter((d) => isImage(d.mime_type));
+  const files = allDocs.filter((d) => !isImage(d.mime_type));
+
+  // Signed-URLs für Bilder laden
+  const [imgUrls, setImgUrls] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const entries: Record<string, string> = {};
+      for (const img of images) {
+        const u = await getUrl(img.storage_path);
+        if (u) entries[img.id] = u;
+      }
+      if (active) setImgUrls(entries);
+    })();
+    return () => { active = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.length]);
 
   const { data: damages = [] } = useQuery({
     queryKey: ['object-history', id],
@@ -158,14 +178,32 @@ export function DispoObjectPrintPage() {
           )}
         </section>
 
-        {/* Dokumente (Liste) */}
-        {(docsQ.data?.length ?? 0) > 0 && (
+        {/* Bilder */}
+        {images.length > 0 && (
           <section className="mt-5">
             <div className="mb-2 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
-              Hinterlegte Dokumente ({docsQ.data?.length})
+              Bilder ({images.length})
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {images.map((img) => (
+                <div key={img.id} className="aspect-square overflow-hidden rounded border bg-slate-100">
+                  {imgUrls[img.id] && (
+                    <img src={imgUrls[img.id]} alt={img.file_name} className="h-full w-full object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Dokumente (Liste) */}
+        {files.length > 0 && (
+          <section className="mt-5">
+            <div className="mb-2 border-b pb-1 text-xs uppercase tracking-wider text-slate-500">
+              Hinterlegte Dokumente ({files.length})
             </div>
             <ul className="list-disc pl-5 text-xs text-slate-700">
-              {docsQ.data?.map((doc) => <li key={doc.id}>{doc.file_name}</li>)}
+              {files.map((doc) => <li key={doc.id}>{doc.file_name}</li>)}
             </ul>
           </section>
         )}

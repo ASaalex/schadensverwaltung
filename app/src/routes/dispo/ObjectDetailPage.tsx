@@ -1,17 +1,17 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
 import { useNetworkObjects } from '@/hooks/useNetworkObjects';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
-import { useObjectDocuments, type ObjectDocument } from '@/hooks/useObjectDocuments';
+import { useObjectDocuments, isImage, type ObjectDocument } from '@/hooks/useObjectDocuments';
 import { ObjectsMap } from '@/components/map/ObjectsMap';
 import { supabase } from '@/lib/supabase';
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 import {
   ArrowLeft, Box, AlertTriangle, Printer, Upload, FileText,
-  Trash2, Download, Loader2, MapPin, Minus, Hexagon,
+  Trash2, Download, Loader2, MapPin, Minus, Hexagon, Camera, ImageIcon,
 } from 'lucide-react';
 
 const GEOM_ICON = { point: MapPin, line: Minus, polygon: Hexagon } as const;
@@ -44,6 +44,11 @@ export function DispoObjectDetailPage() {
 
   const { query: docsQ, uploadMut, deleteMut, getUrl } = useObjectDocuments(id);
   const fileRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  const allDocs = docsQ.data ?? [];
+  const images = allDocs.filter((d) => isImage(d.mime_type));
+  const files = allDocs.filter((d) => !isImage(d.mime_type));
 
   const { data: damages = [], isLoading: damagesLoading } = useQuery({
     queryKey: ['object-history', id],
@@ -209,11 +214,41 @@ export function DispoObjectDetailPage() {
         </div>
       </div>
 
+      {/* Bilder */}
+      <div className="mt-4 rounded-xl border bg-white">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2 font-medium">
+            <ImageIcon className="h-4 w-4 text-emerald-500" /> Bilder ({images.length})
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => photoRef.current?.click()} disabled={uploadMut.isPending}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50">
+              {uploadMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+              Bild hinzufügen
+            </button>
+          </div>
+          <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple className="hidden"
+            onChange={(e) => handleFiles(e.target.files)} />
+        </div>
+        {images.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            Noch keine Bilder. Tippe auf „Bild hinzufügen" (Kamera oder Galerie).
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2 p-3 sm:grid-cols-4 md:grid-cols-6">
+            {images.map((img) => (
+              <ObjectThumbnail key={img.id} doc={img} getUrl={getUrl} onOpen={openDoc}
+                onDelete={() => deleteMut.mutate(img)} deleting={deleteMut.isPending} />
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Dokumente */}
       <div className="mt-4 rounded-xl border bg-white">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2 font-medium">
-            <FileText className="h-4 w-4 text-blue-500" /> Dokumente ({docsQ.data?.length ?? 0})
+            <FileText className="h-4 w-4 text-blue-500" /> Dokumente ({files.length})
           </div>
           <button onClick={() => fileRef.current?.click()} disabled={uploadMut.isPending}
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
@@ -225,13 +260,13 @@ export function DispoObjectDetailPage() {
         </div>
         {uploadError && <div className="px-4 py-2 text-xs text-red-600">{uploadError}</div>}
         {docsQ.isLoading && <div className="px-4 py-6 text-center text-sm text-muted-foreground">Lade …</div>}
-        {!docsQ.isLoading && (docsQ.data?.length ?? 0) === 0 && (
+        {!docsQ.isLoading && files.length === 0 && (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            Noch keine Dokumente. Lade Pläne, Fotos oder PDFs hoch.
+            Noch keine Dokumente. Lade Pläne oder PDFs hoch.
           </div>
         )}
         <div className="divide-y">
-          {docsQ.data?.map((doc) => (
+          {files.map((doc) => (
             <div key={doc.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
               <FileText className="h-4 w-4 flex-shrink-0 text-slate-400" />
               <button onClick={() => openDoc(doc)} className="flex-1 min-w-0 text-left">
@@ -260,6 +295,41 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
     <div className="flex justify-between gap-3">
       <dt className="text-muted-foreground flex-shrink-0">{label}</dt>
       <dd className={`text-right ${mono ? 'font-mono' : ''}`}>{value}</dd>
+    </div>
+  );
+}
+
+function ObjectThumbnail({
+  doc, getUrl, onOpen, onDelete, deleting,
+}: {
+  doc: ObjectDocument;
+  getUrl: (path: string) => Promise<string | null>;
+  onOpen: (doc: ObjectDocument) => void;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    getUrl(doc.storage_path).then((u) => { if (active) setUrl(u); });
+    return () => { active = false; };
+  // getUrl ist pro Render neu — bewusst nur an storage_path koppeln
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.storage_path]);
+  return (
+    <div className="group relative aspect-square overflow-hidden rounded-lg border bg-slate-100">
+      {url ? (
+        <img src={url} alt={doc.file_name} onClick={() => onOpen(doc)}
+          className="h-full w-full cursor-pointer object-cover transition group-hover:opacity-90" />
+      ) : (
+        <div className="flex h-full items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+        </div>
+      )}
+      <button onClick={onDelete} disabled={deleting}
+        className="absolute right-1 top-1 rounded-full bg-black/60 p-1 text-white opacity-0 transition group-hover:opacity-100">
+        <Trash2 className="h-3 w-3" />
+      </button>
     </div>
   );
 }

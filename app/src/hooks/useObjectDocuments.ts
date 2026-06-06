@@ -17,6 +17,42 @@ const BUCKET = 'object-documents';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = () => (supabase as any).from('network_object_documents');
 
+/** Standalone-Upload (z. B. direkt nach Objekt-Erfassung vor Ort) */
+export async function uploadObjectFile(
+  companyId: string,
+  objectId: string,
+  file: File,
+  uploadedBy: string | null,
+): Promise<void> {
+  const uuid = crypto.randomUUID();
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'foto.jpg';
+  const storagePath = `${companyId}/${objectId}/${uuid}_${safeName}`;
+
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  if (upErr) throw new Error(`Upload fehlgeschlagen: ${upErr.message}`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: insErr } = await (supabase as any).from('network_object_documents').insert({
+    company_id:   companyId,
+    object_id:    objectId,
+    file_name:    file.name || 'Foto.jpg',
+    storage_path: storagePath,
+    mime_type:    file.type || 'image/jpeg',
+    size_bytes:   file.size,
+    uploaded_by:  uploadedBy,
+  });
+  if (insErr) {
+    await supabase.storage.from(BUCKET).remove([storagePath]);
+    throw new Error(`Speichern fehlgeschlagen: ${insErr.message}`);
+  }
+}
+
+export function isImage(mime: string | null): boolean {
+  return !!mime && mime.startsWith('image/');
+}
+
 export function useObjectDocuments(objectId: string | undefined) {
   const { profile } = useAuth();
   const qc = useQueryClient();
@@ -39,29 +75,7 @@ export function useObjectDocuments(objectId: string | undefined) {
   const uploadMut = useMutation({
     mutationFn: async (file: File) => {
       if (!profile?.company_id || !objectId) throw new Error('Kein Profil/Objekt');
-      const uuid = crypto.randomUUID();
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const storagePath = `${profile.company_id}/${objectId}/${uuid}_${safeName}`;
-
-      const { error: upErr } = await supabase.storage
-        .from(BUCKET)
-        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream', upsert: false });
-      if (upErr) throw new Error(`Upload fehlgeschlagen: ${upErr.message}`);
-
-      const { error: insErr } = await tbl().insert({
-        company_id:   profile.company_id,
-        object_id:    objectId,
-        file_name:    file.name,
-        storage_path: storagePath,
-        mime_type:    file.type || null,
-        size_bytes:   file.size,
-        uploaded_by:  profile.id,
-      });
-      if (insErr) {
-        // Rollback Storage
-        await supabase.storage.from(BUCKET).remove([storagePath]);
-        throw new Error(`Speichern fehlgeschlagen: ${insErr.message}`);
-      }
+      await uploadObjectFile(profile.company_id, objectId, file, profile.id);
     },
     onSuccess: invalidate,
   });
