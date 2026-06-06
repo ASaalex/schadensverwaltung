@@ -13,6 +13,7 @@ CREATE INDEX IF NOT EXISTS orders_code_pattern_idx  ON public.orders  (code text
 CREATE OR REPLACE FUNCTION public.next_code(p_prefix text)
 RETURNS text
 LANGUAGE plpgsql
+VOLATILE                       -- MUSS volatile sein (Seiteneffekt + eindeutig pro Aufruf)
 SECURITY DEFINER
 SET search_path = public
 AS $$
