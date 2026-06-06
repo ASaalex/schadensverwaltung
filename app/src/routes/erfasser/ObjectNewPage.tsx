@@ -61,8 +61,11 @@ export function ErfasserObjectNewPage() {
   const [editLat, setEditLat] = useState('');
   const [editLng, setEditLng] = useState('');
 
-  // GPS beim Laden starten
-  useEffect(() => { startGps(); }, [startGps]);
+  // GPS beim Laden starten (nur einmal)
+  useEffect(() => {
+    startGps();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Bei Position-Wechsel Edit-Felder aktualisieren
   useEffect(() => {
@@ -245,7 +248,17 @@ export function ErfasserObjectNewPage() {
       <div className="flex min-h-screen flex-col bg-slate-50">
         <Header />
 
+        {/* Loading-State wenn GPS noch wird ermittelt */}
+        {gpsLoading && !position && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+            <div className="text-sm text-muted-foreground">GPS wird ermittelt …</div>
+            <div className="text-xs text-muted-foreground">Dies kann 10-30 Sekunden dauern</div>
+          </div>
+        )}
+
         {/* Karte (volle Höhe) */}
+        {(!gpsLoading || position) && (
         <div className="flex-1 overflow-hidden rounded-t-2xl border-t">
           <LeafletMap
             center={[displayPos.lat, displayPos.lng]}
@@ -255,6 +268,7 @@ export function ErfasserObjectNewPage() {
             showLayerSwitcher={false}
           />
         </div>
+        )}
 
         {/* Footer mit GPS-Editor */}
         <div className="border-t bg-white px-4 py-3 space-y-3">
