@@ -232,7 +232,9 @@ function MobileBottomNav() {
         bottom: 0,
         left: 0,
         right: 0,
-        zIndex: 50,
+        // über Leaflets Steuerelemente (z-index 1000) heben, sonst überlagert
+        // die Karte die untere Leiste
+        zIndex: 1200,
         background: '#0f172a',
         borderTop: '1px solid rgba(255,255,255,0.08)',
         paddingTop: 6,
@@ -355,8 +357,8 @@ export function AppShell({ title, subtitle, accent = 'blue', sidebar, children }
 
       {/* ===== RECHTE SPALTE: Mobile-Header + Inhalt ===== */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
-        {/* Mobile-Header (nur < md) */}
-        <header className="sticky top-0 z-40 border-b bg-white md:hidden">
+        {/* Mobile-Header (nur < md) — z über Leaflet-Controls */}
+        <header className="sticky top-0 z-[1200] border-b bg-white md:hidden">
           <div className="flex w-full items-center justify-between gap-3 px-3 py-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${ACCENT[accent]}`}>
