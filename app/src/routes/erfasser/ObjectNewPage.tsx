@@ -101,34 +101,51 @@ export function ErfasserObjectNewPage() {
         geometry = { type: 'Polygon', coordinates: [[...geomPts, geomPts[0]]] };
       }
 
-      console.log('[ObjectSave] Payload:', {
-        company_id: profile!.company_id,
+      if (!profile?.company_id) {
+        throw new Error('Kein Firmen-Profil geladen (company_id fehlt)');
+      }
+
+      const payload = {
+        company_id:     profile.company_id,
         object_type_id: selType.id,
-        name: name.trim() || null,
-        identifier: kennung.trim() || null,
+        name:           name.trim() || null,
+        identifier:     kennung.trim() || null,
         geometry,
-      });
+      };
+      console.log('[ObjectSave] Payload:', payload);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('network_objects')
-        .insert({
-          company_id:     profile!.company_id,
-          object_type_id: selType.id,
-          name:           name.trim() || null,
-          identifier:     kennung.trim() || null,
-          geometry,
-        })
+        .insert(payload)
         .select('id')
         .single();
 
       if (error) {
-        console.error('[ObjectSave] Error:', error);
-        throw new Error(`Speicherfehler: ${error.message}`);
+        console.error('[ObjectSave] Insert-Error:', error);
+        throw new Error(`Speicherfehler: ${error.message}${error.hint ? ` (${error.hint})` : ''}`);
+      }
+      if (!data?.id) {
+        console.error('[ObjectSave] Kein Datensatz zurück:', data);
+        throw new Error('Insert lieferte keine ID zurück — vermutlich durch Berechtigung (RLS) blockiert.');
       }
 
-      console.log('[ObjectSave] Success:', data);
-      return (data as { id: string }).id;
+      // Verifizierung: Zeile wirklich vorhanden?
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: check, error: checkErr } = await (supabase as any)
+        .from('network_objects')
+        .select('id')
+        .eq('id', data.id)
+        .maybeSingle();
+      if (checkErr) {
+        console.error('[ObjectSave] Verify-Error:', checkErr);
+      }
+      if (!check) {
+        throw new Error('Objekt wurde NICHT gespeichert (Zeile nach Insert nicht auffindbar). Bitte Berechtigungen prüfen.');
+      }
+
+      console.log('[ObjectSave] Verifiziert gespeichert:', data.id);
+      return data.id as string;
     },
     onSuccess: (id) => {
       setSavedCode(id.slice(0, 8).toUpperCase());
@@ -400,16 +417,30 @@ export function ErfasserObjectNewPage() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t px-4 py-3">
+        {saveMut.isError && (
+          <p className="mb-2 text-xs text-red-600 text-center">{(saveMut.error as Error).message}</p>
+        )}
         <button
-          onClick={() => setStep(selType?.geometry_type !== 'point' ? 'geometry' : 'done')}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white active:scale-[0.98] transition">
-          {selType?.geometry_type !== 'point' ? (<>Weiter zur Geometrie <ChevronRight className="h-4 w-4" /></>)
-            : (<>Objekt speichern <CheckCircle2 className="h-4 w-4" /></>)}
+          onClick={() => {
+            if (selType?.geometry_type !== 'point') {
+              setStep('geometry');
+            } else {
+              // PUNKT: jetzt wirklich speichern; done-Schritt erst per onSuccess
+              saveMut.mutate(undefined, { onSuccess: () => setStep('done') });
+            }
+          }}
+          disabled={saveMut.isPending}
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white disabled:opacity-50 active:scale-[0.98] transition">
+          {saveMut.isPending
+            ? (<><Loader2 className="h-4 w-4 animate-spin" /> Speichern …</>)
+            : selType?.geometry_type !== 'point'
+              ? (<>Weiter zur Geometrie <ChevronRight className="h-4 w-4" /></>)
+              : (<>Objekt speichern <CheckCircle2 className="h-4 w-4" /></>)}
         </button>
         {selType?.geometry_type !== 'point' && (
-          <button onClick={() => { saveMut.mutate(); }}
+          <button onClick={() => saveMut.mutate(undefined, { onSuccess: () => setStep('done') })}
             disabled={saveMut.isPending}
-            className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm text-slate-500 active:scale-[0.98] transition">
+            className="mt-2 w-full flex items-center justify-center gap-2 rounded-xl border py-2.5 text-sm text-slate-500 disabled:opacity-50 active:scale-[0.98] transition">
             Ohne Geometrie speichern
           </button>
         )}
@@ -470,7 +501,7 @@ export function ErfasserObjectNewPage() {
 
   if (step === 'done') return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 py-8 text-center">
-      {saveMut.isPending ? (
+      {(saveMut.isPending || saveMut.isIdle) ? (
         <>
           <Loader2 className="mb-4 h-12 w-12 animate-spin text-blue-500" />
           <div className="text-lg font-semibold">Objekt wird gespeichert …</div>
