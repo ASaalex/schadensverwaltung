@@ -515,8 +515,12 @@ export function ErfasserObjectNewPage() {
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white active:scale-[0.98] transition hover:bg-blue-700">
               <Box className="h-4 w-4" /> Weiteres Objekt erfassen
             </button>
-            <button onClick={() => nav('/erfasser')}
+            <button onClick={() => nav('/erfasser/objects')}
               className="flex w-full items-center justify-center gap-2 rounded-2xl border bg-white py-3 text-sm font-medium text-slate-700 active:scale-[0.98] transition hover:bg-slate-50">
+              Alle Objekte ansehen
+            </button>
+            <button onClick={() => nav('/erfasser')}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl py-2 text-sm font-medium text-slate-500 hover:text-slate-700">
               Zurück zur Startseite
             </button>
           </div>
