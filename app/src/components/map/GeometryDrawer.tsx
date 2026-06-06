@@ -35,6 +35,19 @@ interface Props {
   anchorPoint?: [number, number] | null;
 }
 
+/** Behebt graue/leere Karte in Flex-Layouts (Höhe beim Mount unklar). */
+function InvalidateOnMount() {
+  const map = useMap();
+  useEffect(() => {
+    const fix = () => map.invalidateSize();
+    const t1 = setTimeout(fix, 100);
+    const t2 = setTimeout(fix, 400);
+    window.addEventListener('resize', fix);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener('resize', fix); };
+  }, [map]);
+  return null;
+}
+
 /** Synct die Leaflet-Map-Interaktionen mit dem aktuellen Modus. */
 function ModeBinder({ mode }: { mode: Mode }) {
   const map = useMap();
@@ -121,6 +134,7 @@ export function GeometryDrawer({ center, zoom = 17, type, points, onChange, anch
   return (
     <div className="relative h-full w-full">
       <MapContainer center={center} zoom={zoom} maxZoom={22} className="h-full w-full">
+        <InvalidateOnMount />
         <ModeBinder mode={mode} />
         <ClickAddPoint mode={mode} onAdd={addPoint} />
         <MapLayerSwitcher layers={layers} maxZoom={22} />

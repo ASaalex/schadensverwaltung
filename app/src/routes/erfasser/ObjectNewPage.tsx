@@ -524,7 +524,7 @@ export function ErfasserObjectNewPage() {
     const canSave = isLine ? geomPts.length >= 2 : geomPts.length >= 3;
 
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex flex-col bg-slate-50" style={{ minHeight: '100dvh' }}>
         <Header />
         {/* Messanzeige */}
         {measure && (
@@ -532,8 +532,8 @@ export function ErfasserObjectNewPage() {
             {isLine ? `Länge: ${measure}` : `Fläche: ${measure}`} · {geomPts.length} Punkte
           </div>
         )}
-        {/* Karte (volle Höhe minus Header) */}
-        <div className="flex-1" style={{ minHeight: 0 }}>
+        {/* Karte — FESTE Höhe (Leaflet + Overlays brauchen messbare Höhe!) */}
+        <div className="relative w-full" style={{ height: '60vh', minHeight: 360 }}>
           <GeometryDrawer
             center={mapCenter}
             zoom={18}
