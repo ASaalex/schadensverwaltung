@@ -24,6 +24,24 @@ export interface NetworkObject {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = () => (supabase as any).from('network_objects');
 
+/** Sicherheits-Limit: NIE alle Objekte laden (bei zehntausenden friert sonst alles ein) */
+const ALL_LIMIT = 2000;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapObjectRow(r: any): NetworkObject {
+  return {
+    ...r,
+    type_name:          r.object_type?.name,
+    type_color:         r.object_type?.color,
+    type_geometry_type: r.object_type?.geometry_type,
+  };
+}
+
+const OBJ_SELECT = `
+  id, object_type_id, name, identifier, geometry, attributes, created_at, updated_at,
+  object_type:network_object_types!object_type_id ( name, color, geometry_type )
+`;
+
 export function useNetworkObjects() {
   const { profile } = useAuth();
   const qc = useQueryClient();
@@ -32,21 +50,13 @@ export function useNetworkObjects() {
     queryKey: ['network-objects', profile?.company_id],
     queryFn: async (): Promise<NetworkObject[]> => {
       const { data, error } = await tbl()
-        .select(`
-          id, object_type_id, name, identifier, geometry, attributes, created_at, updated_at,
-          object_type:network_object_types!object_type_id ( name, color, geometry_type )
-        `)
+        .select(OBJ_SELECT)
         .eq('company_id', profile!.company_id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(ALL_LIMIT);
       if (error) throw error;
-      return ((data ?? []) as unknown as Array<NetworkObject & {
-        object_type: { name: string; color: string; geometry_type: string } | null;
-      }>).map((r) => ({
-        ...r,
-        type_name:          r.object_type?.name,
-        type_color:         r.object_type?.color,
-        type_geometry_type: r.object_type?.geometry_type,
-      }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map(mapObjectRow);
     },
     enabled: !!profile?.company_id,
   });
@@ -73,6 +83,23 @@ export function useNetworkObjects() {
   });
 
   return { query, saveMut, deleteMut };
+}
+
+/** Lädt EIN Objekt per ID (statt alle zu laden) */
+export function useNetworkObject(id: string | undefined) {
+  const { profile } = useAuth();
+  return useQuery({
+    queryKey: ['network-object', id],
+    enabled: !!id && !!profile?.company_id,
+    queryFn: async (): Promise<NetworkObject | null> => {
+      const { data, error } = await tbl()
+        .select(OBJ_SELECT)
+        .eq('id', id!)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? mapObjectRow(data) : null;
+    },
+  });
 }
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────

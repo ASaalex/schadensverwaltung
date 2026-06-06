@@ -2,10 +2,12 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WizardHeader } from './WizardHeader';
 import { useWizardStore } from '../wizardStore';
-import { useNetworkObjects, findNearbyObjects } from '@/hooks/useNetworkObjects';
+import { findNearbyObjects } from '@/hooks/useNetworkObjects';
+import { useObjectsInBounds } from '@/hooks/useObjectsInBounds';
 import { MapPin, ChevronRight, SkipForward, Box } from 'lucide-react';
 
 const GEOM_LABEL: Record<string, string> = { point: 'Punkt', line: 'Linie', polygon: 'Fläche' };
+const NEAR_DEG = 0.006; // ~600 m Vorfilter-Box um die Position
 
 export function NewObjectPage() {
   const nav = useNavigate();
@@ -13,17 +15,22 @@ export function NewObjectPage() {
   const category        = useWizardStore((s) => s.category);
   const networkObjectId = useWizardStore((s) => s.networkObjectId);
   const setObjectId     = useWizardStore((s) => s.setNetworkObjectId);
-  const { query } = useNetworkObjects();
-  const allObjects = query.data ?? [];
 
   // Objekttypen aus der Kategorie lesen (gespeichert als string[] von UUIDs)
   const typeIds: string[] = useMemo(() => category?.object_type_ids ?? [], [category]);
 
-  // Nahe Objekte suchen (50 m, passender Typ)
+  // Nur Objekte im kleinen Umkreis serverseitig laden (BBox), gefiltert nach Typ
+  const bounds = position
+    ? { minLng: position.lng - NEAR_DEG, minLat: position.lat - NEAR_DEG,
+        maxLng: position.lng + NEAR_DEG, maxLat: position.lat + NEAR_DEG }
+    : null;
+  const { data: candidates = [] } = useObjectsInBounds(bounds, !!position && typeIds.length > 0, typeIds);
+
+  // Nahe Objekte (50 m) aus den Kandidaten
   const nearby = useMemo(() => {
     if (!position) return [];
-    return findNearbyObjects(position.lat, position.lng, allObjects, typeIds, 50);
-  }, [position, allObjects, typeIds]);
+    return findNearbyObjects(position.lat, position.lng, candidates, typeIds, 50);
+  }, [position, candidates, typeIds]);
 
   function pick(id: string | null) {
     setObjectId(id);

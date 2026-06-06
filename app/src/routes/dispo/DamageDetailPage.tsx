@@ -29,7 +29,7 @@ import {
   Box,
 } from 'lucide-react';
 import { formatStationAsb } from '@/lib/networkReferencing';
-import { useNetworkObjects } from '@/hooks/useNetworkObjects';
+import { useNetworkObject } from '@/hooks/useNetworkObjects';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 import { lineLength, polygonArea, formatLength, formatArea } from '@/lib/geoMeasure';
 import type { LucideIcon } from 'lucide-react';
@@ -71,9 +71,8 @@ export function DispoDamageDetailPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { data, isLoading, error } = useDamageDetail(id);
-  const { query: objQuery }     = useNetworkObjects();
+  const { data: linkedObject = null } = useNetworkObject(data?.damage.network_object_id ?? undefined);
   const { query: objTypeQuery } = useNetworkObjectTypes();
-  const linkedObject = objQuery.data?.find((o) => o.id === data?.damage.network_object_id) ?? null;
   const linkedObjType = objTypeQuery.data?.find((t) => t.id === linkedObject?.object_type_id) ?? null;
   const canBundle =
     (data?.damage.status === 'neu' || data?.damage.status === 'geprueft') && !data?.activeOrder;

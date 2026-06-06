@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
-import { useNetworkObjects } from '@/hooks/useNetworkObjects';
+import { useNetworkObject } from '@/hooks/useNetworkObjects';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 import { useObjectDocuments, isImage, type ObjectDocument } from '@/hooks/useObjectDocuments';
 import { ObjectsMap } from '@/components/map/ObjectsMap';
@@ -37,9 +37,9 @@ function formatBytes(n: number | null): string {
 export function DispoObjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const nav = useNavigate();
-  const { query: objQ } = useNetworkObjects();
+  const objQ = useNetworkObject(id);
   const { query: typeQ } = useNetworkObjectTypes();
-  const obj = objQ.data?.find((o) => o.id === id);
+  const obj = objQ.data ?? undefined;
   const type = typeQ.data?.find((t) => t.id === obj?.object_type_id);
 
   const { query: docsQ, uploadMut, deleteMut, getUrl } = useObjectDocuments(id);
