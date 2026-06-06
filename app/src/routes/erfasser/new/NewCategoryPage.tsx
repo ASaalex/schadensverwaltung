@@ -47,6 +47,7 @@ export function NewCategoryPage() {
   }
 
   function finalize(node: CategoryNode, geometryType: GeometryType) {
+    const objTypeIds = node.object_type_ids ?? [];
     setCategory({
       id: node.id,
       name: node.name,
@@ -55,9 +56,9 @@ export function NewCategoryPage() {
       geometry_type: geometryType,
       property_schema: node.property_schema,
       default_priority: node.default_priority,
+      object_type_ids: objTypeIds,
     });
     // Hat die Kategorie verknüpfte Objekttypen? → Objekt-Schritt einschalten
-    const objTypeIds = (node as unknown as { object_type_ids?: string[] }).object_type_ids ?? [];
     nav(objTypeIds.length > 0 ? '/erfasser/new/object' : '/erfasser/new/details');
   }
 

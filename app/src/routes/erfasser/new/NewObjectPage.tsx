@@ -17,10 +17,7 @@ export function NewObjectPage() {
   const allObjects = query.data ?? [];
 
   // Objekttypen aus der Kategorie lesen (gespeichert als string[] von UUIDs)
-  const typeIds: string[] = useMemo(() => {
-    const cat = category as unknown as { object_type_ids?: string[] } | null;
-    return cat?.object_type_ids ?? [];
-  }, [category]);
+  const typeIds: string[] = useMemo(() => category?.object_type_ids ?? [], [category]);
 
   // Nahe Objekte suchen (50 m, passender Typ)
   const nearby = useMemo(() => {

@@ -18,6 +18,8 @@ export interface WizardCategory {
   geometry_type: GeometryType;
   property_schema: PropertyFieldDef[];
   default_priority: Priority | null;
+  /** Verknüpfte Netz-Objekttypen (für Objekt-Vorschlag) */
+  object_type_ids: string[];
 }
 
 interface WizardState {
