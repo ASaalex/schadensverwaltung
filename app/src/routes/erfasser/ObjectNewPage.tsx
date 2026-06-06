@@ -245,34 +245,38 @@ export function ErfasserObjectNewPage() {
       : !!position;
 
     return (
-      <div className="flex min-h-screen flex-col bg-slate-50">
+      <div className="flex flex-col bg-slate-50" style={{ minHeight: '100dvh' }}>
         <Header />
 
-        {/* Loading-State wenn GPS noch wird ermittelt */}
-        {gpsLoading && !position && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-            <div className="text-sm text-muted-foreground">GPS wird ermittelt …</div>
-            <div className="text-xs text-muted-foreground">Dies kann 10-30 Sekunden dauern</div>
-          </div>
-        )}
-
-        {/* Karte (volle Höhe) */}
-        {(!gpsLoading || position) && (
-        <div className="flex-1 overflow-hidden">
+        {/* Karte — FESTE Höhe (Leaflet braucht messbare Höhe!) */}
+        <div className="relative w-full" style={{ height: '55vh' }}>
           <PositionMap
             center={[displayPos.lat, displayPos.lng]}
             zoom={18}
             markerLat={displayPos.lat}
             markerLng={displayPos.lng}
+            onMapClick={(lat, lng) => {
+              setEditingPos(true);
+              setEditLat(lat.toFixed(6));
+              setEditLng(lng.toFixed(6));
+            }}
             onMarkerMove={(lat, lng) => {
               setEditingPos(true);
               setEditLat(lat.toFixed(6));
               setEditLng(lng.toFixed(6));
             }}
           />
+          {/* GPS-Lade-Overlay über der Karte */}
+          {gpsLoading && !position && (
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-[1000] mx-auto w-fit rounded-full bg-white/95 px-3 py-1.5 text-xs text-slate-700 shadow flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" /> GPS wird ermittelt …
+            </div>
+          )}
+          {/* Hinweis tippen */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-2 z-[1000] mx-auto w-fit max-w-[90%] rounded bg-white/95 px-3 py-1 text-[11px] text-slate-600 shadow">
+            Tippe auf die Karte oder ziehe den Pin
+          </div>
         </div>
-        )}
 
         {/* Footer mit GPS-Editor */}
         <div className="border-t bg-white px-4 py-3 space-y-3">
