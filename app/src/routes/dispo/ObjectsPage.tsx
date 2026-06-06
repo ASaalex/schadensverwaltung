@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type L from 'leaflet';
 import { AppShell } from '@/components/layout/AppShell';
 import { DISPO_SIDEBAR } from './sidebar';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 import { useObjectsInBounds, useObjectsSearch, type Bounds } from '@/hooks/useObjectsInBounds';
-import { ObjectsMap } from '@/components/map/ObjectsMap';
+import { ObjectsVectorMap } from '@/components/map/ObjectsVectorMap';
+import { objectCenter } from '@/hooks/useNetworkObjects';
 import {
   Search, MapPin, Minus, Hexagon, Box, Filter as FilterIcon,
   ChevronLeft, ChevronRight, Loader2, Upload,
@@ -53,11 +53,23 @@ export function DispoObjectsPage() {
     setPage(0);
   }
 
-  function handleViewChange(b: L.LatLngBounds, z: number) {
+  function handleViewChange(b: Bounds, z: number) {
     setZoom(z);
-    setBounds({ minLng: b.getWest(), minLat: b.getSouth(), maxLng: b.getEast(), maxLat: b.getNorth() });
+    setBounds(b);
     setPage(0);
   }
+
+  // Bounds der Suchtreffer → Karte darauf zoomen
+  const searchFit = useMemo((): [[number, number], [number, number]] | null => {
+    if (!searching || objects.length === 0) return null;
+    let minLng = 180, minLat = 90, maxLng = -180, maxLat = -90;
+    for (const o of objects) {
+      const [lng, lat] = objectCenter(o);
+      minLng = Math.min(minLng, lng); maxLng = Math.max(maxLng, lng);
+      minLat = Math.min(minLat, lat); maxLat = Math.max(maxLat, lat);
+    }
+    return [[minLng, minLat], [maxLng, maxLat]];
+  }, [searching, objects]);
 
   return (
     <AppShell title="Disposition" subtitle="Objekte" sidebar={DISPO_SIDEBAR}>
@@ -175,24 +187,20 @@ export function DispoObjectsPage() {
         <div className="overflow-hidden rounded-xl border bg-white lg:col-span-2">
           <div className="flex items-center gap-1.5 border-b px-3 py-2 text-xs text-muted-foreground">
             <FilterIcon className="h-3 w-3" />
-            {searching
-              ? `${objects.length} Treffer (Karte zeigt Suchergebnisse)`
-              : `${objects.length} Objekt${objects.length === 1 ? '' : 'e'} im Kartenausschnitt`}
+            Vektor-Tiles · Tabelle zeigt {searching ? 'Suchtreffer' : 'den Kartenausschnitt'}
           </div>
           <div className="h-[600px]">
-            <ObjectsMap
-              objects={objects}
+            <ObjectsVectorMap
               selectedId={selectedId}
               onObjectClick={(id) => nav(`/dispo/objects/${id}`)}
-              onViewChange={searching ? undefined : handleViewChange}
-              autoFit={searching}
+              onViewChange={handleViewChange}
+              fitBounds={searchFit}
               zoom={13}
             />
           </div>
           <div className="border-t px-3 py-1.5 text-[11px] text-muted-foreground">
-            {searching
-              ? 'Suche durchsucht alle Objekte. Leeren, um wieder den Kartenausschnitt zu laden.'
-              : 'Karte verschieben/zoomen lädt die Objekte des sichtbaren Bereichs.'}
+            Karte rendert alle Objekte als Vektor-Tiles. Die Liste links zeigt
+            {searching ? ' die Suchtreffer.' : ' die Objekte des sichtbaren Bereichs.'}
           </div>
         </div>
       </div>

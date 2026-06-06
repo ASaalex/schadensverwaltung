@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
-import { ErfasserObjectsMap } from '@/components/map/ErfasserObjectsMap';
+import { ObjectsVectorMap } from '@/components/map/ObjectsVectorMap';
 import { Plus } from 'lucide-react';
 
 export function ErfasserObjectListPage() {
@@ -23,11 +23,11 @@ export function ErfasserObjectListPage() {
         {/* Karte (lädt Objekte viewport-basiert) */}
         <div className="relative overflow-hidden rounded-2xl border shadow-sm"
           style={{ height: 'calc(100dvh - 200px)', minHeight: 380 }}>
-          <ErfasserObjectsMap onObjectClick={(id) => nav(`/dispo/objects/${id}`)} />
+          <ObjectsVectorMap showGps onObjectClick={(id) => nav(`/dispo/objects/${id}`)} />
         </div>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Objekte werden beim Reinzoomen für den sichtbaren Ausschnitt geladen.
+          Vektor-Karte · Objekte werden als Tiles geladen (auch bei sehr vielen flüssig).
         </p>
       </div>
     </AppShell>
