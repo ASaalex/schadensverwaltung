@@ -8,7 +8,7 @@ import { useObjectsInBounds, useObjectsSearch, type Bounds } from '@/hooks/useOb
 import { ObjectsMap } from '@/components/map/ObjectsMap';
 import {
   Search, MapPin, Minus, Hexagon, Box, Filter as FilterIcon,
-  ChevronLeft, ChevronRight, Loader2,
+  ChevronLeft, ChevronRight, Loader2, Upload,
 } from 'lucide-react';
 
 const GEOM_ICON = { point: MapPin, line: Minus, polygon: Hexagon } as const;
@@ -73,6 +73,10 @@ export function DispoObjectsPage() {
             {isFetching && <Loader2 className="ml-2 inline h-3 w-3 animate-spin text-blue-500" />}
           </p>
         </div>
+        <button onClick={() => nav('/dispo/objects/import')}
+          className="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-slate-50">
+          <Upload className="h-4 w-4" /> CSV-Import
+        </button>
       </div>
 
       {/* Filterleiste */}
