@@ -6,7 +6,7 @@ import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { MapOptionsControl, type OverlayToggle } from './MapOptionsControl';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
-import { NetworkObjectVectorOverlay } from './NetworkObjectVectorOverlay';
+import { NetworkObjectViewportLayer } from './NetworkObjectViewportLayer';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 import type { DamageListItem } from '@/hooks/useDamageList';
 import type { MapLayer } from '@/types/database';
@@ -149,7 +149,7 @@ export function DamagesMap({
         <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={false} activeId={baseId} onActiveChange={setBaseId} />
         {allow.network && showNetwork && <NetworkLayer segments={segments} />}
         {allow.network && showNetwork && <NetworkAreaLayer />}
-        {allow.objects && showObjects && <NetworkObjectVectorOverlay />}
+        {allow.objects && showObjects && <NetworkObjectViewportLayer />}
 
         <MarkerClusterGroup
           chunkedLoading

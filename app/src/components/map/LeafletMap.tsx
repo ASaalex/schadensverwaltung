@@ -5,7 +5,7 @@ import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { MapOptionsControl, type OverlayToggle } from './MapOptionsControl';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
-import { NetworkObjectVectorOverlay } from './NetworkObjectVectorOverlay';
+import { NetworkObjectViewportLayer } from './NetworkObjectViewportLayer';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 // Default-Marker-Icons werden zentral in src/lib/leafletIcons.ts gesetzt
@@ -96,7 +96,7 @@ export function LeafletMap({
       <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={false} activeId={baseId} onActiveChange={setBaseId} />
       {allow.network && showNetwork && <NetworkLayer segments={segments} />}
       {allow.network && showNetwork && <NetworkAreaLayer />}
-      {allow.objects && showObjects && <NetworkObjectVectorOverlay />}
+      {allow.objects && showObjects && <NetworkObjectViewportLayer />}
       {markerPosition && (
         <Marker
           position={markerPosition}
