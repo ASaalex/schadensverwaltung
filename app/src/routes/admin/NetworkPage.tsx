@@ -1,15 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { ADMIN_SIDEBAR } from './sidebar';
 import { useNetworkNodes, type NetworkNode } from '@/hooks/useNetworkNodes';
 import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments';
-import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
+import { useNetworkObjectTypes, buildObjectTypeTree } from '@/hooks/useNetworkObjectTypes';
 import { useNetworkObjects, type NetworkObject } from '@/hooks/useNetworkObjects';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
+import { PropertySchemaEditor } from '@/components/forms/PropertySchemaEditor';
+import type { PropertyFieldDef } from '@/types/database';
 // NetworkObjectLayer wird im Karten-Tab über GeometryDrawer nicht direkt genutzt
 import { lineLength, formatLength } from '@/lib/geoMeasure';
 import { formatStationAsb } from '@/lib/networkReferencing';
@@ -78,8 +80,17 @@ export function AdminNetworkPage() {
   const [tab, setTab] = useState<PageTab>('knoten');
 
   // ─ Objekt-Typ-State ──────────────────────────────────────────────────────
-  const [objTypeForm, setObjTypeForm] = useState({ id: '', name: '', geometry_type: 'point', color: '#6366f1', description: '' });
+  const emptyObjTypeForm = {
+    id: '', parent_id: null as string | null, name: '', geometry_type: 'point',
+    color: '#6366f1', description: '', property_schema: [] as PropertyFieldDef[],
+  };
+  const [objTypeForm, setObjTypeForm] = useState(emptyObjTypeForm);
   const [objTypeModalOpen, setObjTypeModalOpen] = useState(false);
+  const objTypeTree = buildObjectTypeTree(objTypes);
+  function openTypeCreate(parentId: string | null) {
+    setObjTypeForm({ ...emptyObjTypeForm, parent_id: parentId });
+    setObjTypeModalOpen(true);
+  }
   // ─ Objekt-State ──────────────────────────────────────────────────────────
   const [selectedObjType, setSelectedObjType] = useState<string>('');
   const [objForm, setObjForm] = useState({ id: '', name: '', identifier: '' });
@@ -687,13 +698,13 @@ export function AdminNetworkPage() {
             </button>
           </div>
 
-          {/* ── OBJEKTTYPEN ── */}
+          {/* ── OBJEKTTYPEN (Baum) ── */}
           {objSubTab === 'typen' && (
             <div className="space-y-4">
               <div className="rounded-xl border bg-white">
                 <div className="flex items-center justify-between border-b px-4 py-3">
                   <h3 className="font-medium">Objekttypen</h3>
-                  <button onClick={() => { setObjTypeForm({ id: '', name: '', geometry_type: 'point', color: '#6366f1', description: '' }); setObjTypeModalOpen(true); }}
+                  <button onClick={() => openTypeCreate(null)}
                     className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
                     <Plus className="h-3.5 w-3.5" /> Typ anlegen
                   </button>
@@ -701,33 +712,46 @@ export function AdminNetworkPage() {
                 <div className="divide-y">
                   {objTypes.length === 0 && (
                     <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                      Noch keine Objekttypen. Beispiele: Laterne (Punkt), Leitplanke (Linie), Erdwall (Fläche).
+                      Noch keine Objekttypen. Lege Oberkategorien an (z. B. „Beleuchtung") und darunter
+                      konkrete Typen (z. B. „Laterne").
                     </div>
                   )}
-                  {objTypes.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50">
-                      <div className="flex items-center gap-3">
-                        <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ background: t.color }} />
-                        <div>
-                          <div className="text-sm font-medium">{t.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {t.geometry_type === 'point' ? '● Punkt' : t.geometry_type === 'line' ? '— Linie' : '▪ Fläche'}
-                            {t.description && ` · ${t.description}`}
+                  {(() => {
+                    const renderNode = (n: ReturnType<typeof buildObjectTypeTree>[number]): ReactNode => (
+                      <div key={n.id}>
+                        <div className="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50"
+                          style={{ paddingLeft: 16 + n.depth * 22 }}>
+                          <div className="flex items-center gap-3">
+                            <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ background: n.color }} />
+                            <div>
+                              <div className="text-sm font-medium">{n.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {n.geometry_type === 'point' ? '● Punkt' : n.geometry_type === 'line' ? '— Linie' : '▪ Fläche'}
+                                {n.property_schema.length > 0 && ` · ${n.property_schema.length} Merkmal(e)`}
+                                {n.description && ` · ${n.description}`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button onClick={() => openTypeCreate(n.id)} title="Unterebene"
+                              className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600">
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => { setObjTypeForm({ id: n.id, parent_id: n.parent_id, name: n.name, geometry_type: n.geometry_type, color: n.color, description: n.description ?? '', property_schema: n.property_schema }); setObjTypeModalOpen(true); }}
+                              className="rounded p-1 text-slate-400 hover:bg-slate-100">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => objTypeDel.mutate(n.id)}
+                              className="rounded p-1 text-red-400 hover:bg-red-50">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
+                        {n.children.map(renderNode)}
                       </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => { setObjTypeForm({ id: t.id, name: t.name, geometry_type: t.geometry_type, color: t.color, description: t.description ?? '' }); setObjTypeModalOpen(true); }}
-                          className="rounded p-1 text-slate-400 hover:bg-slate-100">
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => objTypeDel.mutate(t.id)}
-                          className="rounded p-1 text-red-400 hover:bg-red-50">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                    return objTypeTree.map(renderNode);
+                  })()}
                 </div>
               </div>
             </div>
@@ -912,12 +936,17 @@ export function AdminNetworkPage() {
       {/* Objekttyp anlegen / bearbeiten */}
       {objTypeModalOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-4">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 flex items-center justify-between border-b bg-white px-5 py-4">
               <h3 className="font-semibold">{objTypeForm.id ? 'Objekttyp bearbeiten' : 'Objekttyp anlegen'}</h3>
               <button onClick={() => setObjTypeModalOpen(false)}><X className="h-5 w-5 text-slate-400" /></button>
             </div>
             <div className="space-y-4 px-5 py-4">
+              {objTypeForm.parent_id && (
+                <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                  Unterebene von: <b>{objTypes.find((t) => t.id === objTypeForm.parent_id)?.name ?? '—'}</b>
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-700">Name *</label>
                 <input value={objTypeForm.name}
@@ -953,12 +982,25 @@ export function AdminNetworkPage() {
                   placeholder="Kurzbeschreibung"
                   className="w-full rounded-lg border px-3 py-2 text-sm" />
               </div>
+
+              {/* Merkmale */}
+              <div className="border-t pt-3">
+                <PropertySchemaEditor
+                  schema={objTypeForm.property_schema}
+                  onChange={(next) => setObjTypeForm((f) => ({ ...f, property_schema: next }))}
+                />
+                {objTypeForm.parent_id && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Merkmale übergeordneter Typen werden beim Erfassen automatisch vererbt.
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex justify-end gap-3 border-t px-5 py-4">
+            <div className="sticky bottom-0 flex justify-end gap-3 border-t bg-white px-5 py-4">
               <button onClick={() => setObjTypeModalOpen(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
               <button
                 onClick={() => objTypeSave.mutate(
-                  { id: objTypeForm.id || undefined, name: objTypeForm.name, geometry_type: objTypeForm.geometry_type as 'point' | 'line' | 'polygon', color: objTypeForm.color, description: objTypeForm.description || null },
+                  { id: objTypeForm.id || undefined, parent_id: objTypeForm.parent_id, name: objTypeForm.name, geometry_type: objTypeForm.geometry_type as 'point' | 'line' | 'polygon', color: objTypeForm.color, description: objTypeForm.description || null, property_schema: objTypeForm.property_schema },
                   { onSuccess: () => setObjTypeModalOpen(false) }
                 )}
                 disabled={!objTypeForm.name.trim() || objTypeSave.isPending}

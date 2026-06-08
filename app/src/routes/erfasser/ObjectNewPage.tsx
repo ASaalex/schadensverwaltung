@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
-import { useNetworkObjectTypes, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
+import { useNetworkObjectTypes, inheritedSchema, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { uploadObjectFile } from '@/hooks/useObjectDocuments';
 import { withRetry } from '@/lib/retry';
@@ -64,6 +64,9 @@ export function ErfasserObjectNewPage() {
   const [editLng, setEditLng] = useState('');
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [photoUploadInfo, setPhotoUploadInfo] = useState<string | null>(null);
+  const [attrValues, setAttrValues] = useState<Record<string, unknown>>({});
+  // Merkmale des gewählten Typs inkl. vererbter Merkmale der Oberkategorien
+  const typeSchema = selType ? inheritedSchema(selType.id, types) : [];
 
   function addPhotos(files: FileList | null) {
     if (!files) return;
@@ -128,6 +131,7 @@ export function ErfasserObjectNewPage() {
         name:           name.trim() || null,
         identifier:     kennung.trim() || null,
         geometry,
+        attributes:     attrValues,
       };
       console.log('[ObjectSave] Payload:', payload);
 
@@ -194,7 +198,7 @@ export function ErfasserObjectNewPage() {
 
   function reset() {
     setStep('type'); setSelType(null);
-    setName(''); setKennung(''); setGeomPts([]);
+    setName(''); setKennung(''); setGeomPts([]); setAttrValues({});
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
     setPhotoUploadInfo(null);
@@ -452,6 +456,45 @@ export function ErfasserObjectNewPage() {
             />
           </div>
         </div>
+
+        {/* Merkmale des Objekttyps */}
+        {typeSchema.length > 0 && (
+          <div className="rounded-xl border bg-white p-4 space-y-3">
+            <div className="text-sm font-semibold text-slate-700">Merkmale</div>
+            {typeSchema.map((f) => {
+              const val = attrValues[f.name];
+              const set = (v: unknown) => setAttrValues((s) => ({ ...s, [f.name]: v }));
+              return (
+                <div key={f.name}>
+                  <label className="mb-1 block text-sm font-medium text-slate-700">
+                    {f.label || f.name}{f.required && <span className="ml-1 text-red-500">*</span>}
+                    {f.unit && <span className="ml-1 text-xs text-slate-400">({f.unit})</span>}
+                  </label>
+                  {f.field_type === 'boolean' ? (
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={val === true}
+                        onChange={(e) => set(e.target.checked)} className="h-5 w-5" />
+                      Ja
+                    </label>
+                  ) : f.field_type === 'select' ? (
+                    <select value={(val as string) ?? ''} onChange={(e) => set(e.target.value || null)}
+                      className="w-full rounded-xl border px-4 py-3 text-base">
+                      <option value="">— wählen —</option>
+                      {(f.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      type={f.field_type === 'number' || f.field_type === 'decimal' ? 'number' : f.field_type === 'date' ? 'date' : 'text'}
+                      inputMode={f.field_type === 'number' ? 'numeric' : f.field_type === 'decimal' ? 'decimal' : undefined}
+                      value={(val as string) ?? ''}
+                      onChange={(e) => set(e.target.value === '' ? null : e.target.value)}
+                      className="w-full rounded-xl border px-4 py-3 text-base" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Fotos */}
         <div className="rounded-xl border bg-white p-4">
