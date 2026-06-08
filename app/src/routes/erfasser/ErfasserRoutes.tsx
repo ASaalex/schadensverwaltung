@@ -9,6 +9,7 @@ import { NewObjectPage } from './new/NewObjectPage';
 import { NewDonePage } from './new/NewDonePage';
 import { ErfasserObjectNewPage } from './ObjectNewPage';
 import { ErfasserObjectListPage } from './ObjectListPage';
+import { ErfasserInspectionWalkPage } from './InspectionWalkPage';
 
 export function ErfasserRoutes() {
   return (
@@ -20,6 +21,7 @@ export function ErfasserRoutes() {
       <Route path="new/category" element={<NewCategoryPage />} />
       <Route path="new/object"     element={<NewObjectPage />} />
       <Route path="objects"        element={<ErfasserObjectListPage />} />
+      <Route path="kontrollgang"   element={<ErfasserInspectionWalkPage />} />
       <Route path="objects/new"    element={<ErfasserObjectNewPage />} />
       <Route path="new/details" element={<NewDetailsPage />} />
       <Route path="new/photos" element={<NewPhotosPage />} />

@@ -15,9 +15,11 @@ import {
   ClipboardPlus,
   PackageOpen,
   Activity,
+  Route,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { DISPO_SIDEBAR } from './sidebar';
+import { InspectionStatusMap } from '@/components/map/InspectionStatusMap';
 import { useDashboardActivity, useTodayCounts, type ActivityItem } from '@/hooks/useDashboardActivity';
 
 interface Kpis {
@@ -80,6 +82,16 @@ export function DispoDashboardPage() {
         <Kpi label="Heute fällig" value={isLoading ? '—' : String(kpis?.dueToday ?? 0)} icon={<CalendarClock className="h-4 w-4 text-amber-500" />} />
         <Kpi label="Überfällig" value={isLoading ? '—' : String(kpis?.overdue ?? 0)} icon={<AlarmClock className="h-4 w-4 text-red-500" />} />
         <Kpi label="Aufträge in Bearbeitung" value={isLoading ? '—' : String(kpis?.ordersInProgress ?? 0)} icon={<ClipboardList className="h-4 w-4 text-emerald-500" />} />
+      </div>
+
+      {/* Straßenkontrolle — Fälligkeits-Ampel */}
+      <div className="mb-6 overflow-hidden rounded-xl border bg-white">
+        <div className="flex items-center gap-2 border-b px-4 py-3 font-medium">
+          <Route className="h-4 w-4 text-blue-600" /> Straßenkontrolle — Fälligkeit
+        </div>
+        <div className="h-[420px]">
+          <InspectionStatusMap />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
