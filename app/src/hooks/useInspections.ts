@@ -10,7 +10,15 @@ export const ASB_KLASSEN: Record<string, string> = {
 };
 
 export interface ClassInterval { road_class: string; interval_months: number; }
-export interface SegmentStatus { id: string; status: 'red' | 'yellow' | 'green'; last_at: string | null; due_at: string | null; days_until_due: number | null; }
+export type SegStatus = 'red' | 'yellow' | 'green' | 'none';
+export interface SegmentStatus { id: string; status: SegStatus; last_at: string | null; due_at: string | null; days_until_due: number | null; }
+
+export interface SegmentInspection {
+  id: string;
+  inspected_at: string;
+  coverage_pct: number | null;
+  inspector_name: string | null;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = (n: string) => (supabase as any).from(n);
@@ -62,5 +70,25 @@ export function useSegmentStatus() {
     },
     enabled: !!profile?.company_id,
     staleTime: 60_000,
+  });
+}
+
+/** Begehungs-Historie eines Abschnitts (wann/von wem) */
+export function useSegmentInspections(segmentId: string | null) {
+  return useQuery({
+    queryKey: ['segment-inspections', segmentId],
+    enabled: !!segmentId,
+    queryFn: async (): Promise<SegmentInspection[]> => {
+      const { data, error } = await tbl('segment_inspections')
+        .select('id, inspected_at, coverage_pct, inspector:users!inspected_by ( full_name )')
+        .eq('segment_id', segmentId!)
+        .order('inspected_at', { ascending: false });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id, inspected_at: r.inspected_at, coverage_pct: r.coverage_pct,
+        inspector_name: r.inspector?.full_name ?? null,
+      }));
+    },
   });
 }
