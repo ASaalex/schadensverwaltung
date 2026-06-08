@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import maplibregl, { Map as MlMap, type MapGeoJSONFeature } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { Crosshair, Layers } from 'lucide-react';
+import { Crosshair, Layers, ChevronDown, ChevronUp } from 'lucide-react';
 import { useGpsWatch } from '@/hooks/useGeolocation';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { buildBasemaps } from './maplibreBasemaps';
@@ -53,6 +53,8 @@ export function ObjectsVectorMap({
 
   const basemaps = useMemo(() => buildBasemaps(mapLayers), [mapLayers]);
   const [activeBase, setActiveBase] = useState<string>('osm');
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [showObjects, setShowObjects] = useState(true);
   const baseInitRef = useRef(false);
   // Default-Basemap aus Konfiguration übernehmen (einmalig)
   useEffect(() => {
@@ -185,6 +187,16 @@ export function ObjectsVectorMap({
     }
   }, [basemaps, activeBase, mapReady]);
 
+  // Objekt-Layer ein-/ausblenden
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = showObjects ? 'visible' : 'none';
+    for (const id of ['obj-fill', 'obj-fill-line', 'obj-line', 'obj-point', 'obj-highlight']) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+    }
+  }, [showObjects, mapReady]);
+
   // Hervorhebung aktualisieren
   useEffect(() => {
     const map = mapRef.current;
@@ -225,20 +237,36 @@ export function ObjectsVectorMap({
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
 
-      {/* Basemap-Switcher (oben rechts) */}
-      {basemaps.length > 1 && (
-        <div className="absolute right-3 top-3 z-10 overflow-hidden rounded-lg bg-white shadow-lg">
-          <div className="flex items-center gap-1 border-b bg-slate-50 px-2 py-1 text-xs text-slate-500">
-            <Layers className="h-3 w-3" /> Karte
+      {/* Karten-Optionen (ausklappbar): Hintergrund + Overlays */}
+      <div className="absolute right-3 top-3 z-10 w-44 overflow-hidden rounded-lg bg-white/95 shadow-lg">
+        <button onClick={() => setOptionsOpen((o) => !o)}
+          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-slate-600">
+          <span className="flex items-center gap-1.5"><Layers className="h-3.5 w-3.5" /> Kartenoptionen</span>
+          {optionsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
+        {optionsOpen && (
+          <div className="border-t">
+            {basemaps.length > 1 && (
+              <div className="px-2 py-1.5">
+                <div className="px-1 pb-1 text-[10px] uppercase tracking-wider text-slate-400">Hintergrund</div>
+                {basemaps.map((bm) => (
+                  <button key={bm.id} onClick={() => setActiveBase(bm.id)}
+                    className={`block w-full rounded px-2 py-1 text-left text-xs ${activeBase === bm.id ? 'bg-blue-50 font-medium text-blue-700' : 'hover:bg-slate-50'}`}>
+                    {activeBase === bm.id ? '●' : '○'} {bm.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className={`px-2 py-1.5 ${basemaps.length > 1 ? 'border-t' : ''}`}>
+              <div className="px-1 pb-1 text-[10px] uppercase tracking-wider text-slate-400">Anzeigen</div>
+              <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-slate-50">
+                <input type="checkbox" checked={showObjects} onChange={(e) => setShowObjects(e.target.checked)} className="h-3.5 w-3.5" />
+                <span className="h-2 w-2 rounded-full bg-indigo-500" /> Objekte
+              </label>
+            </div>
           </div>
-          {basemaps.map((bm) => (
-            <button key={bm.id} onClick={() => setActiveBase(bm.id)}
-              className={`block w-full px-3 py-1.5 text-left text-xs ${activeBase === bm.id ? 'bg-blue-50 font-medium text-blue-700' : 'hover:bg-slate-50'}`}>
-              {activeBase === bm.id ? '●' : '○'} {bm.name}
-            </button>
-          ))}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* GPS-Recenter (unten links, kollidiert nicht mit Switcher/Zoom) */}
       {showGps && (

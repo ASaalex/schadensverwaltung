@@ -3,6 +3,7 @@ import { MapContainer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
+import { MapOptionsControl, type OverlayToggle } from './MapOptionsControl';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { NetworkObjectVectorOverlay } from './NetworkObjectVectorOverlay';
@@ -106,41 +107,6 @@ function ViewTracker({ onChange }: { onChange: (b: L.LatLngBounds, z: number) =>
   return null;
 }
 
-/** Netz-Toggle-Button als Leaflet-Control */
-function NetworkToggle({ show, onToggle }: { show: boolean; onToggle: () => void }) {
-  return (
-    <div className="leaflet-top leaflet-left" style={{ pointerEvents: 'auto', marginTop: 80, marginLeft: 10 }}>
-      <button
-        onClick={onToggle}
-        className="leaflet-control leaflet-bar"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          padding: '4px 8px',
-          background: show ? '#0ea5e9' : 'white',
-          color: show ? 'white' : '#64748b',
-          border: `1.5px solid ${show ? '#0284c7' : '#cbd5e1'}`,
-          borderRadius: 6,
-          fontSize: 11,
-          fontWeight: 600,
-          fontFamily: 'sans-serif',
-          cursor: 'pointer',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
-          whiteSpace: 'nowrap',
-        }}
-        title="Straßennetz ein-/ausblenden"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M3 3l7 7m0 0l4-4 7 7M10 10l2 11"/>
-        </svg>
-        Netz
-      </button>
-    </div>
-  );
-}
-
 interface Props {
   center: [number, number];
   items: DamageListItem[];
@@ -152,27 +118,38 @@ interface Props {
   autoFit?: boolean;
   /** Meldet Kartenausschnitt + Zoom (für serverseitiges Viewport-Laden) */
   onViewChange?: (bounds: L.LatLngBounds, zoom: number) => void;
+  /** Welche Overlay-Schalter angeboten werden (Rollen-Filter). Default: alle. */
+  allowOverlays?: { network?: boolean; objects?: boolean; damages?: boolean };
 }
 
 export function DamagesMap({
   center, items, selectedId, onPinClick, layers, className,
-  autoFit = true, onViewChange,
+  autoFit = true, onViewChange, allowOverlays,
 }: Props) {
   const { data: segments = [] } = useNetworkSegments();
   const [showNetwork, setShowNetwork] = useState(true);
+  const [showObjects, setShowObjects] = useState(true);
+  const [showDamages, setShowDamages] = useState(true);
+  const [baseId, setBaseId] = useState<string | null>(layers?.find((l) => l.is_default)?.id ?? null);
 
-  const withPos = items.filter((d) => d.gps_lat != null && d.gps_lng != null);
+  const allow = { network: true, objects: true, damages: true, ...allowOverlays };
+  const withPos = showDamages ? items.filter((d) => d.gps_lat != null && d.gps_lng != null) : [];
+
+  const overlays: OverlayToggle[] = [
+    allow.network && { key: 'net', label: 'Netz', checked: showNetwork, onChange: setShowNetwork, color: '#0ea5e9' },
+    allow.objects && { key: 'obj', label: 'Objekte', checked: showObjects, onChange: setShowObjects, color: '#6366f1' },
+    allow.damages && { key: 'dmg', label: 'Schäden', checked: showDamages, onChange: setShowDamages, color: '#ef4444' },
+  ].filter(Boolean) as OverlayToggle[];
 
   return (
     <div className={`relative ${className ?? 'h-full w-full'}`}>
       <MapContainer center={center} zoom={13} maxZoom={22} scrollWheelZoom className="h-full w-full">
         {autoFit && <FitBounds items={items} />}
         {onViewChange && <ViewTracker onChange={onViewChange} />}
-        <MapLayerSwitcher layers={layers} maxZoom={22} />
-        {showNetwork && <NetworkLayer segments={segments} />}
-        {showNetwork && <NetworkAreaLayer />}
-        {showNetwork && <NetworkObjectVectorOverlay />}
-        <NetworkToggle show={showNetwork} onToggle={() => setShowNetwork((v) => !v)} />
+        <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={false} activeId={baseId} onActiveChange={setBaseId} />
+        {allow.network && showNetwork && <NetworkLayer segments={segments} />}
+        {allow.network && showNetwork && <NetworkAreaLayer />}
+        {allow.objects && showObjects && <NetworkObjectVectorOverlay />}
 
         <MarkerClusterGroup
           chunkedLoading
@@ -192,6 +169,9 @@ export function DamagesMap({
           ))}
         </MarkerClusterGroup>
       </MapContainer>
+
+      {/* Karten-Optionen (ausklappbar): Hintergrund + Overlays */}
+      <MapOptionsControl layers={layers} activeLayerId={baseId} onLayerChange={setBaseId} overlays={overlays} />
 
       {/* Status-Legende */}
       <div className="absolute bottom-2 left-2 z-[1000] flex flex-wrap gap-2 rounded bg-white/95 px-2 py-1 text-xs shadow">

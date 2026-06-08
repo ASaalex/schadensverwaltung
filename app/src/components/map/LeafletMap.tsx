@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MapContainer, Marker, Polygon, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
+import { MapOptionsControl, type OverlayToggle } from './MapOptionsControl';
 import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { NetworkObjectVectorOverlay } from './NetworkObjectVectorOverlay';
@@ -23,6 +24,9 @@ interface Props {
   zoomable?: boolean;
   /** Layer-Switcher (Luftbild etc.) zeigen — default true */
   showLayerSwitcher?: boolean;
+  /** Welche Overlays angeboten/angezeigt werden (Rollen-Filter).
+   *  Firmen sehen nur den Auftrag → { network:false, objects:false }. */
+  allowOverlays?: { network?: boolean; objects?: boolean };
 }
 
 function CenterUpdater({ center }: { center: [number, number] }) {
@@ -54,16 +58,28 @@ export function LeafletMap({
   className,
   zoomable = true,
   showLayerSwitcher = true,
+  allowOverlays,
 }: Props) {
   const markerRef = useRef<L.Marker>(null);
   const { data: layers } = useMapLayers();
   const { data: segments = [] } = useNetworkSegments();
+  const allow = { network: true, objects: true, ...allowOverlays };
+  const [showNetwork, setShowNetwork] = useState(true);
+  const [showObjects, setShowObjects] = useState(true);
+  const [baseId, setBaseId] = useState<string | null>(layers?.find((l) => l.is_default)?.id ?? null);
+
+  const overlays: OverlayToggle[] = [
+    allow.network && { key: 'net', label: 'Netz', checked: showNetwork, onChange: setShowNetwork, color: '#0ea5e9' },
+    allow.objects && { key: 'obj', label: 'Objekte', checked: showObjects, onChange: setShowObjects, color: '#6366f1' },
+  ].filter(Boolean) as OverlayToggle[];
 
   // GeoJSON-Koordinaten sind [lng, lat], Leaflet erwartet [lat, lng]
   const polygonLatLng = polygon ? polygon.map(([lng, lat]) => [lat, lng] as [number, number]) : null;
   const lineLatLng = line ? line.map(([lng, lat]) => [lat, lng] as [number, number]) : null;
 
+  const showOptions = showLayerSwitcher && zoomable;
   return (
+    <div className="relative h-full w-full">
     <MapContainer
       center={center}
       zoom={zoom}
@@ -77,10 +93,10 @@ export function LeafletMap({
     >
       <CenterUpdater center={center} />
       <ClickHandler onClick={onMapClick} />
-      <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={showLayerSwitcher && zoomable} />
-      <NetworkLayer segments={segments} />
-      <NetworkAreaLayer />
-      <NetworkObjectVectorOverlay />
+      <MapLayerSwitcher layers={layers} maxZoom={22} showSwitcher={false} activeId={baseId} onActiveChange={setBaseId} />
+      {allow.network && showNetwork && <NetworkLayer segments={segments} />}
+      {allow.network && showNetwork && <NetworkAreaLayer />}
+      {allow.objects && showObjects && <NetworkObjectVectorOverlay />}
       {markerPosition && (
         <Marker
           position={markerPosition}
@@ -108,5 +124,9 @@ export function LeafletMap({
         <Polyline positions={lineLatLng} pathOptions={{ color: '#ea580c', weight: 3 }} />
       )}
     </MapContainer>
+    {showOptions && (
+      <MapOptionsControl layers={layers} activeLayerId={baseId} onLayerChange={setBaseId} overlays={overlays} />
+    )}
+    </div>
   );
 }

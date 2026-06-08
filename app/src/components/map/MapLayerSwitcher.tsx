@@ -9,6 +9,10 @@ export interface MapLayerSwitcherProps {
   maxZoom?: number;
   /** UI-Switcher anzeigen (false bei sehr kleinen Karten / Print) */
   showSwitcher?: boolean;
+  /** Kontrolliert: aktive Layer-ID von außen (z. B. gemeinsames Optionen-Panel) */
+  activeId?: string | null;
+  /** Kontrolliert: Änderung der aktiven Layer-ID melden */
+  onActiveChange?: (id: string | null) => void;
 }
 
 /** WMS-URL-Template parsen: extrahiert base + Parameter wie layers/format/transparent */
@@ -31,10 +35,18 @@ export function MapLayerSwitcher({
   layers,
   maxZoom = 22,
   showSwitcher = true,
+  activeId: controlledId,
+  onActiveChange,
 }: MapLayerSwitcherProps) {
-  const [activeId, setActiveId] = useState<string | null>(
+  const [internalId, setInternalId] = useState<string | null>(
     layers?.find((l) => l.is_default)?.id ?? layers?.[0]?.id ?? null,
   );
+  const controlled = controlledId !== undefined;
+  const activeId = controlled ? controlledId : internalId;
+  const setActiveId = (id: string | null) => {
+    if (controlled) onActiveChange?.(id);
+    else setInternalId(id);
+  };
   const active = layers?.find((l) => l.id === activeId) ?? null;
 
   const tileMaxNative = 19; // OSM/Tiles haben ~19 echte Zoom-Stufen, Rest = Overzoom

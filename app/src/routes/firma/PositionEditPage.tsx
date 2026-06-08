@@ -278,6 +278,8 @@ export function FirmaPositionEditPage() {
                       ? (position.damage_geometry as { coordinates: number[][] }).coordinates
                       : null
                   }
+                  /* Firma sieht nur den Auftrag — keine Netz-/Objekt-Overlays */
+                  allowOverlays={{ network: false, objects: false }}
                 />
               </div>
               {navigateUrl && (
