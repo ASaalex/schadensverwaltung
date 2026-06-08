@@ -1,48 +1,30 @@
 /**
- * Kontrollgang: GPS mitschneiden. Beim Beenden werden alle Abschnitte, die zu
- * >= 50 % begangen wurden, serverseitig als kontrolliert markiert.
+ * Kontrollgang: GPS mitschneiden (läuft via Store auch im Hintergrund weiter,
+ * während man einen Schaden erfasst). Beim Beenden werden Abschnitte mit
+ * >= 50 % Überdeckung serverseitig als kontrolliert markiert.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { LeafletMap } from '@/components/map/LeafletMap';
-import { useGpsWatch } from '@/hooks/useGeolocation';
-import { lineLength, formatLength, haversineDistance } from '@/lib/geoMeasure';
+import { useInspectionWalk } from './inspectionWalkStore';
+import { lineLength, formatLength } from '@/lib/geoMeasure';
 import { supabase } from '@/lib/supabase';
-import { Play, Square, Loader2, CheckCircle2, Footprints, AlertCircle } from 'lucide-react';
+import { Play, Square, Loader2, CheckCircle2, Footprints, AlertCircle, AlertTriangle } from 'lucide-react';
 
 export function ErfasserInspectionWalkPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
-  const [tracking, setTracking] = useState(false);
-  const { position } = useGpsWatch(tracking);
-  const [track, setTrack] = useState<number[][]>([]); // [lng,lat][]
+  const { active, track, current, start, stop, reset } = useInspectionWalk();
   const [result, setResult] = useState<{ count: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lastRef = useRef<number[] | null>(null);
-
-  // Punkte anhängen, wenn man sich > 5 m bewegt hat
-  useEffect(() => {
-    if (!tracking || !position) return;
-    const p = [position.lng, position.lat];
-    const last = lastRef.current;
-    if (!last || haversineDistance(last as [number, number], p as [number, number]) >= 5) {
-      lastRef.current = p;
-      setTrack((t) => [...t, p]);
-    }
-  }, [position, tracking]);
 
   const distance = track.length >= 2 ? lineLength(track) : 0;
 
-  function start() {
-    setTrack([]); lastRef.current = null; setResult(null); setError(null);
-    setTracking(true);
-  }
-
-  async function stop() {
-    setTracking(false);
+  async function handleStop() {
+    stop();
     if (track.length < 2) { setError('Zu wenig Strecke aufgezeichnet.'); return; }
     setSaving(true); setError(null);
     try {
@@ -59,22 +41,23 @@ export function ErfasserInspectionWalkPage() {
     }
   }
 
-  const center: [number, number] = position ? [position.lat, position.lng] : [50.9787, 11.0328];
+  const center: [number, number] = current ?? [50.9787, 11.0328];
 
   return (
     <AppShell accent="blue" title="Kontrollgang" subtitle="Begehung aufzeichnen">
       <div className="space-y-3 px-3 py-3">
         <div className="rounded-xl border bg-blue-50 p-3 text-xs text-blue-700">
           Starte die Aufzeichnung und gehe die Straße ab. Abschnitte, die du zu mindestens
-          <b> 50 %</b> begehst, werden automatisch als kontrolliert markiert.
+          <b> 50 %</b> begehst, werden beim Beenden als kontrolliert markiert. Du kannst während
+          des Gangs jederzeit einen <b>Schaden erfassen</b> — die Aufzeichnung läuft weiter.
         </div>
 
         {/* Karte mit Track */}
-        <div className="relative overflow-hidden rounded-2xl border shadow-sm" style={{ height: 'calc(100dvh - 280px)', minHeight: 320 }}>
+        <div className="relative overflow-hidden rounded-2xl border shadow-sm" style={{ height: 'calc(100dvh - 320px)', minHeight: 280 }}>
           <LeafletMap
             center={center}
             zoom={17}
-            markerPosition={position ? [position.lat, position.lng] : null}
+            markerPosition={current}
             line={track.length >= 2 ? track : null}
             allowOverlays={{ network: true, objects: false }}
           />
@@ -86,35 +69,41 @@ export function ErfasserInspectionWalkPage() {
             <Footprints className="h-4 w-4 text-blue-500" />
             {track.length} Punkte · {formatLength(distance)}
           </span>
-          {tracking && <span className="flex items-center gap-1.5 text-emerald-600"><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>Aufzeichnung läuft</span>}
+          {active && <span className="flex items-center gap-1.5 text-emerald-600"><span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" /></span>läuft</span>}
         </div>
 
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 flex items-center gap-2"><AlertCircle className="h-4 w-4" />{error}</div>}
-
         {result && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            {result.count > 0
-              ? `${result.count} Abschnitt(e) als kontrolliert markiert.`
-              : 'Kein Abschnitt ausreichend (≥ 50 %) begangen.'}
+            {result.count > 0 ? `${result.count} Abschnitt(e) als kontrolliert markiert.` : 'Kein Abschnitt ausreichend (≥ 50 %) begangen.'}
           </div>
         )}
 
+        {/* Während der Aufzeichnung: Schaden erfassen */}
+        {active && (
+          <button
+            onClick={() => nav('/erfasser/new/location', { state: { returnTo: '/erfasser/kontrollgang' } })}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-semibold text-white active:scale-[0.98] transition">
+            <AlertTriangle className="h-4 w-4" /> Schaden hier erfassen
+          </button>
+        )}
+
         {/* Steuerung */}
-        {!tracking ? (
-          <button onClick={start}
+        {!active ? (
+          <button onClick={() => { setResult(null); setError(null); start(); }}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-semibold text-white active:scale-[0.98] transition">
             <Play className="h-4 w-4" /> {result ? 'Neuen Kontrollgang starten' : 'Aufzeichnung starten'}
           </button>
         ) : (
-          <button onClick={stop} disabled={saving}
+          <button onClick={handleStop} disabled={saving}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white active:scale-[0.98] transition disabled:opacity-50">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
             {saving ? 'Werte aus …' : 'Beenden & auswerten'}
           </button>
         )}
 
-        <button onClick={() => nav('/erfasser')} className="w-full py-2 text-sm text-slate-500">
+        <button onClick={() => { if (active) stop(); reset(); nav('/erfasser'); }} className="w-full py-2 text-sm text-slate-500">
           Zurück zur Startseite
         </button>
       </div>

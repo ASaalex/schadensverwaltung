@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { WizardHeader } from './WizardHeader';
 import { LeafletMap } from '@/components/map/LeafletMap';
 import { useGeolocation, useGpsWatch } from '@/hooks/useGeolocation';
@@ -23,6 +23,12 @@ const DEFAULT_CENTER: [number, number] = [50.9787, 11.0328];
 
 export function NewLocationPage() {
   const nav = useNavigate();
+  const location = useLocation();
+  // Rücksprungziel (z. B. Kontrollgang) für die Fertig-Seite merken
+  useEffect(() => {
+    const rt = (location.state as { returnTo?: string } | null)?.returnTo;
+    if (rt) sessionStorage.setItem('wizardReturnTo', rt);
+  }, [location.state]);
   const { position: oneShot, setPosition: setOneShot, loading: gpsLoading, error: gpsError, fetchPosition } = useGeolocation();
   const storePos = useWizardStore((s) => s.position);
   const storeAddress = useWizardStore((s) => s.address);
