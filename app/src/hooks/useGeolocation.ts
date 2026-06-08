@@ -16,17 +16,29 @@ export function useGeolocation() {
     setLoading(true);
     setError(null);
     try {
-      const result = await Geolocation.getCurrentPosition({
-        enableHighAccuracy: true,
-        timeout: 10_000,
-      });
-      setPosition({
-        lat: result.coords.latitude,
-        lng: result.coords.longitude,
-        accuracy: result.coords.accuracy,
-      });
+      // Mehrere Messungen über ~6 s — die mit der besten (kleinsten) Genauigkeit gewinnt
+      const ATTEMPTS = 3;
+      let best: Position | null = null;
+      for (let i = 0; i < ATTEMPTS; i++) {
+        try {
+          const r = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10_000,
+            maximumAge: 0,
+          });
+          const p: Position = { lat: r.coords.latitude, lng: r.coords.longitude, accuracy: r.coords.accuracy };
+          if (!best || p.accuracy < best.accuracy) best = p;
+          setPosition(p.accuracy <= (best?.accuracy ?? Infinity) ? p : best);
+          // Gut genug → früher abbrechen
+          if (p.accuracy <= 10) break;
+        } catch (inner) {
+          // Letzter Versuch wirft weiter
+          if (i === ATTEMPTS - 1) throw inner;
+        }
+      }
+      if (best) setPosition(best);
     } catch (e) {
-      const msg = (e as Error).message ?? 'GPS-Position konnte nicht ermittelt werden';
+      const msg = friendlyGpsError(e);
       setError(msg);
     } finally {
       setLoading(false);
@@ -34,6 +46,20 @@ export function useGeolocation() {
   }, []);
 
   return { position, setPosition, loading, error, fetchPosition };
+}
+
+/** Übersetzt technische GPS-/Lade-Fehler in verständliche Hinweise */
+function friendlyGpsError(e: unknown): string {
+  const msg = (e as Error)?.message ?? String(e);
+  const m = msg.toLowerCase();
+  if (m.includes('mime type') || m.includes('load failed') || m.includes('dynamically imported')) {
+    return 'Standortdienst lädt — bitte erneut versuchen (App wird ggf. kurz neu geladen).';
+  }
+  if (m.includes('denied') || m.includes('permission')) {
+    return 'Standortzugriff verweigert. Bitte in den Browser-/App-Einstellungen erlauben.';
+  }
+  if (m.includes('timeout')) return 'GPS-Timeout — bitte im Freien erneut versuchen.';
+  return msg || 'GPS-Position konnte nicht ermittelt werden';
 }
 
 /**
@@ -49,30 +75,36 @@ export function useGpsWatch(enabled: boolean) {
     if (!enabled) return;
 
     let active = true;
+    let bestAcc = Infinity;
+    let lastTs = 0;
 
     (async () => {
       try {
         const id = await Geolocation.watchPosition(
-          { enableHighAccuracy: true, timeout: 10_000 },
+          { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
           (pos, err) => {
             if (!active) return;
             if (err) {
-              setError(err.message ?? 'GPS-Update fehlgeschlagen');
+              setError(friendlyGpsError(err));
               return;
             }
             if (pos) {
               setError(null);
-              setPosition({
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracy: pos.coords.accuracy,
-              });
+              const acc = pos.coords.accuracy;
+              const now = Date.now();
+              // Bessere Genauigkeit immer übernehmen; schlechtere nur, wenn
+              // der letzte gute Wert > 15 s alt ist (Position könnte gewandert sein).
+              if (acc <= bestAcc || now - lastTs > 15_000) {
+                bestAcc = acc;
+                lastTs = now;
+                setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: acc });
+              }
             }
           },
         );
         watchIdRef.current = id;
       } catch (e) {
-        if (active) setError((e as Error).message);
+        if (active) setError(friendlyGpsError(e));
       }
     })();
 

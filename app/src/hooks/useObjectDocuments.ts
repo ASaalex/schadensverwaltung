@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
+import { withRetry } from '@/lib/retry';
 
 export interface ObjectDocument {
   id: string;
@@ -28,9 +29,11 @@ export async function uploadObjectFile(
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_') || 'foto.jpg';
   const storagePath = `${companyId}/${objectId}/${uuid}_${safeName}`;
 
-  const { error: upErr } = await supabase.storage
-    .from(BUCKET)
-    .upload(storagePath, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  const { error: upErr } = await withRetry(async () =>
+    await supabase.storage
+      .from(BUCKET)
+      .upload(storagePath, file, { contentType: file.type || 'image/jpeg', upsert: false }),
+  );
   if (upErr) throw new Error(`Upload fehlgeschlagen: ${upErr.message}`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

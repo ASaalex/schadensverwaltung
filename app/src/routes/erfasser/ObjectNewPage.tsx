@@ -10,6 +10,7 @@ import { useAuth } from '@/auth/AuthContext';
 import { useNetworkObjectTypes, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { uploadObjectFile } from '@/hooks/useObjectDocuments';
+import { withRetry } from '@/lib/retry';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
 import { PositionMap } from '@/components/map/PositionMap';
 import {
@@ -130,12 +131,15 @@ export function ErfasserObjectNewPage() {
       };
       console.log('[ObjectSave] Payload:', payload);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('network_objects')
-        .insert(payload)
-        .select('id')
-        .single();
+      // Insert mit Retry gegen transiente Netzfehler ("Load failed")
+      const { data, error } = await withRetry(async () =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('network_objects')
+          .insert(payload)
+          .select('id')
+          .single(),
+      );
 
       if (error) {
         console.error('[ObjectSave] Insert-Error:', error);
