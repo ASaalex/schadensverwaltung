@@ -37,8 +37,9 @@ export function InspectionStatusMap() {
         allPts.push([lat, lng]);
         return [lat, lng] as [number, number];
       });
-      const status = statusMap[s.id]?.status ?? 'red';
-      return { id: s.id, positions, status, name: s.name, from: s.from_node, to: s.to_node, due: statusMap[s.id]?.due_at };
+      const st = statusMap[s.id];
+      const status = st?.status ?? 'red';
+      return { id: s.id, positions, status, name: s.name, from: s.from_node, to: s.to_node, due: st?.due_at, days: st?.days_until_due ?? null };
     });
 
   const center: [number, number] = allPts[0] ?? [50.9787, 11.0328];
@@ -54,8 +55,11 @@ export function InspectionStatusMap() {
             <Tooltip sticky>
               <div className="text-xs">
                 <b>{l.name ?? `${l.from} → ${l.to}`}</b>
-                <div>Status: {l.status === 'red' ? 'fällig/überfällig' : l.status === 'yellow' ? 'nächsten Monat' : 'später'}</div>
                 {l.due && <div>fällig: {new Date(l.due).toLocaleDateString('de-DE')}</div>}
+                {l.days != null && (
+                  <div>{l.days < 0 ? `überfällig seit ${Math.abs(l.days)} Tag(en)` : `in ${l.days} Tag(en) fällig`}</div>
+                )}
+                {l.days == null && <div>keine Begehung / keine Kontrolle</div>}
               </div>
             </Tooltip>
           </Polyline>
@@ -64,7 +68,7 @@ export function InspectionStatusMap() {
 
       {/* Legende */}
       <div className="absolute bottom-2 left-2 z-[1000] flex flex-wrap gap-3 rounded bg-white/95 px-3 py-1.5 text-xs shadow">
-        {[['red', 'fällig / überfällig'], ['yellow', 'nächsten Monat'], ['green', 'später']].map(([k, label]) => (
+        {[['red', 'überfällig / ≤ 30 Tage'], ['yellow', '31–60 Tage'], ['green', '> 60 Tage']].map(([k, label]) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className="h-2.5 w-4 rounded" style={{ background: STATUS_COLOR[k] }} />
             <span className="text-slate-700">{label}</span>

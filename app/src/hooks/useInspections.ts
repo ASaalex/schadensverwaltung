@@ -10,7 +10,7 @@ export const ASB_KLASSEN: Record<string, string> = {
 };
 
 export interface ClassInterval { road_class: string; interval_months: number; }
-export interface SegmentStatus { id: string; status: 'red' | 'yellow' | 'green'; last_at: string | null; due_at: string | null; }
+export interface SegmentStatus { id: string; status: 'red' | 'yellow' | 'green'; last_at: string | null; due_at: string | null; days_until_due: number | null; }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = (n: string) => (supabase as any).from(n);
@@ -53,7 +53,7 @@ export function useSegmentStatus() {
     queryKey: ['segment-status', profile?.company_id],
     queryFn: async (): Promise<Record<string, SegmentStatus>> => {
       const { data, error } = await tbl('segment_inspection_status')
-        .select('id, status, last_at, due_at')
+        .select('id, status, last_at, due_at, days_until_due')
         .eq('company_id', profile!.company_id);
       if (error) throw error;
       const map: Record<string, SegmentStatus> = {};
