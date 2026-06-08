@@ -45,8 +45,22 @@ export function NetworkObjectVectorOverlay({ onObjectClick }: Props) {
     // getMaplibreMap ist erst nach 'add' verfügbar
     setTimeout(wire, 300);
 
+    // maplibre-gl-leaflet rendert beim Pan teils nicht neu → Repaint/Resize erzwingen,
+    // damit Objekte zuverlässig (nicht erst beim Zoomen) erscheinen.
+    const repaint = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ml = glLayer.getMaplibreMap?.() as any;
+      if (ml) { try { ml.resize(); ml.triggerRepaint(); } catch { /* ignore */ } }
+    };
+    map.on('moveend', repaint);
+    map.on('zoomend', repaint);
+    const t = setTimeout(repaint, 500);
+
     return () => {
       if (detach) detach();
+      clearTimeout(t);
+      map.off('moveend', repaint);
+      map.off('zoomend', repaint);
       map.removeLayer(glLayer);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

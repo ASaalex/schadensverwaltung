@@ -3,6 +3,22 @@ import { supabase } from '@/lib/supabase';
 
 let registered = false;
 
+async function fetchTileB64(z: number, x: number, y: number): Promise<string> {
+  let lastErr: unknown;
+  for (let i = 0; i < 4; i++) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc('objects_mvt', { z, x, y });
+      if (error) throw new Error(error.message);
+      return (data as string) ?? '';
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 300 * (i + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 /** Registriert das 'objtiles://'-Protokoll für MapLibre — Tiles via supabase.rpc (RLS-konform). */
 export function registerObjectTileProtocol() {
   if (registered) return;
@@ -10,10 +26,7 @@ export function registerObjectTileProtocol() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (maplibregl as any).addProtocol('objtiles', async (params: { url: string }) => {
     const [z, x, y] = params.url.replace('objtiles://', '').split('/').map(Number);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc('objects_mvt', { z, x, y });
-    if (error) throw new Error(error.message);
-    const b64 = (data as string) ?? '';
+    const b64 = await fetchTileB64(z, x, y);
     if (!b64) return { data: new Uint8Array(0) };
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);

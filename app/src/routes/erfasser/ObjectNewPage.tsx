@@ -7,15 +7,15 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
-import { useNetworkObjectTypes, inheritedSchema, type NetworkObjectType } from '@/hooks/useNetworkObjectTypes';
+import { useNetworkObjectTypes, inheritedSchema, buildObjectTypeTree, type NetworkObjectType, type ObjectTypeNode } from '@/hooks/useNetworkObjectTypes';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { uploadObjectFile } from '@/hooks/useObjectDocuments';
 import { withRetry } from '@/lib/retry';
 import { GeometryDrawer } from '@/components/map/GeometryDrawer';
 import { PositionMap } from '@/components/map/PositionMap';
 import {
-  ArrowLeft, X, MapPin, CheckCircle2, Loader2,
-  ChevronRight, Box, Navigation, Minus, Hexagon, Edit3, AlertCircle, Camera,
+  ArrowLeft, X, CheckCircle2, Loader2,
+  ChevronRight, Box, Navigation, Edit3, AlertCircle, Camera,
 } from 'lucide-react';
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 
@@ -23,7 +23,6 @@ import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeas
 
 type Step = 'type' | 'position' | 'details' | 'geometry' | 'done';
 
-const GEOM_ICON = { point: MapPin, line: Minus, polygon: Hexagon } as const;
 const GEOM_LABEL: Record<string, string> = { point: 'Punkt', line: 'Linie', polygon: 'Fläche' };
 const GEOM_DESC: Record<string, string> = {
   point:   'Kannst du manuell anpassen oder automatisch ermitteln.',
@@ -65,8 +64,11 @@ export function ErfasserObjectNewPage() {
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [photoUploadInfo, setPhotoUploadInfo] = useState<string | null>(null);
   const [attrValues, setAttrValues] = useState<Record<string, unknown>>({});
+  const [typePath, setTypePath] = useState<ObjectTypeNode[]>([]); // Drill-down-Pfad
   // Merkmale des gewählten Typs inkl. vererbter Merkmale der Oberkategorien
   const typeSchema = selType ? inheritedSchema(selType.id, types) : [];
+  const typeTree = buildObjectTypeTree(types);
+  const currentLevel = typePath.length === 0 ? typeTree : typePath[typePath.length - 1].children;
 
   function addPhotos(files: FileList | null) {
     if (!files) return;
@@ -198,7 +200,7 @@ export function ErfasserObjectNewPage() {
 
   function reset() {
     setStep('type'); setSelType(null);
-    setName(''); setKennung(''); setGeomPts([]); setAttrValues({});
+    setName(''); setKennung(''); setGeomPts([]); setAttrValues({}); setTypePath([]);
     photos.forEach((p) => URL.revokeObjectURL(p.preview));
     setPhotos([]);
     setPhotoUploadInfo(null);
@@ -261,37 +263,51 @@ export function ErfasserObjectNewPage() {
             Noch keine Objekttypen definiert. Bitte zuerst in der Administration anlegen.
           </div>
         )}
-        {/* Gruppiert nach Geometrietyp */}
-        {(['point', 'line', 'polygon'] as const).map((gt) => {
-          const group = types.filter((t) => t.geometry_type === gt);
-          if (group.length === 0) return null;
-          const Icon = GEOM_ICON[gt];
-          return (
-            <div key={gt}>
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                <Icon className="h-3 w-3" /> {GEOM_LABEL[gt]}
-              </div>
-              <div className="space-y-2">
-                {group.map((t) => (
-                  <button key={t.id}
-                    onClick={() => { setSelType(t); setStep('position'); }}
-                    className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm active:scale-[0.98] transition hover:bg-slate-50">
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
-                      style={{ background: `${t.color}22` }}>
-                      <span className="h-4 w-4 rounded-full" style={{ background: t.color }} />
-                    </span>
-                    <div className="flex-1">
-                      <div className="font-medium">{t.name}</div>
-                      {t.description && <div className="text-xs text-muted-foreground">{t.description}</div>}
-                      <div className="mt-0.5 text-xs text-slate-400">{GEOM_DESC[gt]}</div>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-slate-300" />
-                  </button>
-                ))}
-              </div>
+
+        {/* Pfad / Zurück innerhalb der Ebenen */}
+        {typePath.length > 0 && (
+          <button onClick={() => setTypePath((p) => p.slice(0, -1))}
+            className="flex items-center gap-1 text-sm text-blue-600">
+            <ArrowLeft className="h-4 w-4" />
+            {typePath.map((n) => n.name).join(' › ')}
+          </button>
+        )}
+
+        {/* Aktuelle Ebene */}
+        <div className="space-y-2">
+          {currentLevel.map((t) => {
+            const hasChildren = t.children.length > 0;
+            return (
+              <button key={t.id}
+                onClick={() => {
+                  if (hasChildren) setTypePath((p) => [...p, t]);
+                  else { setSelType(t); setStep('position'); }
+                }}
+                className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm active:scale-[0.98] transition hover:bg-slate-50">
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: `${t.color}22` }}>
+                  {hasChildren
+                    ? <Box className="h-5 w-5" style={{ color: t.color }} />
+                    : <span className="h-4 w-4 rounded-full" style={{ background: t.color }} />}
+                </span>
+                <div className="flex-1">
+                  <div className="font-medium">{t.name}</div>
+                  <div className="mt-0.5 text-xs text-slate-400">
+                    {hasChildren
+                      ? `${t.children.length} Untertyp${t.children.length === 1 ? '' : 'en'}`
+                      : `${GEOM_LABEL[t.geometry_type]} · ${GEOM_DESC[t.geometry_type]}`}
+                  </div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-slate-300" />
+              </button>
+            );
+          })}
+          {currentLevel.length === 0 && (
+            <div className="rounded-xl border bg-white p-6 text-center text-sm text-muted-foreground">
+              Keine Untertypen vorhanden.
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
     </div>
   );
