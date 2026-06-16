@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
@@ -20,6 +21,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { DISPO_SIDEBAR } from './sidebar';
 import { InspectionStatusMap } from '@/components/map/InspectionStatusMap';
+import { InspectionStatusTable } from '@/components/map/InspectionStatusTable';
 import { useDashboardActivity, useTodayCounts, type ActivityItem } from '@/hooks/useDashboardActivity';
 
 interface Kpis {
@@ -68,6 +70,7 @@ export function DispoDashboardPage() {
   const { data: kpis, isLoading } = useQuery({ queryKey: ['kpis'], queryFn: fetchKpis, refetchInterval: 60_000 });
   const { data: activity = [] } = useDashboardActivity(30);
   const { data: today } = useTodayCounts();
+  const [inspView, setInspView] = useState<'map' | 'table'>('map');
 
   return (
     <AppShell title="Disposition" subtitle="Bauhof Erfurt · Dashboard" sidebar={DISPO_SIDEBAR}>
@@ -84,13 +87,25 @@ export function DispoDashboardPage() {
         <Kpi label="Aufträge in Bearbeitung" value={isLoading ? '—' : String(kpis?.ordersInProgress ?? 0)} icon={<ClipboardList className="h-4 w-4 text-emerald-500" />} />
       </div>
 
-      {/* Straßenkontrolle — Fälligkeits-Ampel */}
+      {/* Straßenkontrolle — Fälligkeit (Karte ↔ Tabelle) */}
       <div className="mb-6 overflow-hidden rounded-xl border bg-white">
-        <div className="flex items-center gap-2 border-b px-4 py-3 font-medium">
-          <Route className="h-4 w-4 text-blue-600" /> Straßenkontrolle — Fälligkeit
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2 font-medium">
+            <Route className="h-4 w-4 text-blue-600" /> Straßenkontrolle — Fälligkeit
+          </div>
+          <div className="flex gap-1 rounded-lg border bg-slate-50 p-0.5 text-xs">
+            <button onClick={() => setInspView('map')}
+              className={`rounded-md px-3 py-1 ${inspView === 'map' ? 'bg-blue-600 text-white font-medium' : 'text-slate-600'}`}>
+              Karte
+            </button>
+            <button onClick={() => setInspView('table')}
+              className={`rounded-md px-3 py-1 ${inspView === 'table' ? 'bg-blue-600 text-white font-medium' : 'text-slate-600'}`}>
+              Tabelle
+            </button>
+          </div>
         </div>
         <div className="h-[420px]">
-          <InspectionStatusMap />
+          {inspView === 'map' ? <InspectionStatusMap /> : <InspectionStatusTable />}
         </div>
       </div>
 

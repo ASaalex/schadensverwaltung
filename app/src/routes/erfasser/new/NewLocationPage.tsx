@@ -154,6 +154,7 @@ export function NewLocationPage() {
           zoom={activePos ? 17 : 13}
           markerPosition={activePos ? [activePos.lat, activePos.lng] : null}
           draggableMarker
+          crosshair
           onMarkerDrag={handleMarkerDrag}
           onMapClick={handleMapClick}
         />

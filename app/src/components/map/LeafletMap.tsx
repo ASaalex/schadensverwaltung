@@ -27,7 +27,22 @@ interface Props {
   /** Welche Overlays angeboten/angezeigt werden (Rollen-Filter).
    *  Firmen sehen nur den Auftrag → { network:false, objects:false }. */
   allowOverlays?: { network?: boolean; objects?: boolean };
+  /** Positions-Marker als transparentes Fadenkreuz (bessere Punktbestimmung) */
+  crosshair?: boolean;
 }
+
+/** Transparenter Kreis mit Fadenkreuz zur präzisen Positionsbestimmung */
+const CROSSHAIR_ICON = L.divIcon({
+  className: '',
+  iconSize: [64, 64],
+  iconAnchor: [32, 32],
+  html: `<div style="width:64px;height:64px;position:relative;">
+    <div style="position:absolute;inset:0;border-radius:50%;background:rgba(37,99,235,0.15);border:2px solid #2563eb;"></div>
+    <div style="position:absolute;left:50%;top:4px;bottom:4px;width:1.5px;transform:translateX(-50%);background:#2563eb;"></div>
+    <div style="position:absolute;top:50%;left:4px;right:4px;height:1.5px;transform:translateY(-50%);background:#2563eb;"></div>
+    <div style="position:absolute;left:50%;top:50%;width:6px;height:6px;border-radius:50%;background:#2563eb;transform:translate(-50%,-50%);"></div>
+  </div>`,
+});
 
 function CenterUpdater({ center }: { center: [number, number] }) {
   const map = useMap();
@@ -59,6 +74,7 @@ export function LeafletMap({
   zoomable = true,
   showLayerSwitcher = true,
   allowOverlays,
+  crosshair = false,
 }: Props) {
   const markerRef = useRef<L.Marker>(null);
   const { data: layers } = useMapLayers();
@@ -102,6 +118,7 @@ export function LeafletMap({
           position={markerPosition}
           draggable={draggableMarker}
           ref={markerRef}
+          icon={crosshair ? CROSSHAIR_ICON : undefined}
           eventHandlers={
             draggableMarker
               ? {
