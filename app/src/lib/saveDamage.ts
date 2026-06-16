@@ -25,11 +25,13 @@ export interface SaveProgress {
  *
  * Wirft Fehler mit klarem deutschen Text, ruft optional onProgress auf.
  */
+export interface SaveDamageResult { code: string; id: string | null; }
+
 export async function saveDamage(
   profile: UserProfile,
   state: WizardState,
   onProgress?: (p: SaveProgress) => void,
-): Promise<string> {
+): Promise<SaveDamageResult> {
   if (!state.position) throw new Error('Keine Position vorhanden');
   if (!state.category) throw new Error('Keine Kategorie ausgewählt');
 
@@ -60,7 +62,7 @@ export async function saveDamage(
     const localId = await queuePendingDamage(offlinePayload, photoBlobs);
     // eslint-disable-next-line no-console
     console.log('[saveDamage] OFFLINE: in Queue gelegt', localId);
-    return `LOCAL-${localId.slice(0, 8)} (offline, wartet auf Sync)`;
+    return { code: `LOCAL-${localId.slice(0, 8)} (offline, wartet auf Sync)`, id: null };
   }
 
   const payload = {
@@ -184,7 +186,7 @@ export async function saveDamage(
   onProgress?.({ step: 'done' });
   // eslint-disable-next-line no-console
   console.log('[saveDamage] Fertig.');
-  return damage.code;
+  return { code: damage.code, id: damage.id };
 }
 
 function withTimeout<T>(p: PromiseLike<T>, ms: number, msg: string): Promise<T> {

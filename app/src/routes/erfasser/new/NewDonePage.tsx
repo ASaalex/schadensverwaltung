@@ -1,12 +1,18 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Check, Plus, Footprints } from 'lucide-react';
+import { Check, Plus, Footprints, PackagePlus } from 'lucide-react';
+import { useAuth } from '@/auth/AuthContext';
 
 export function NewDonePage() {
   const nav = useNavigate();
   const location = useLocation();
-  const code = (location.state as { code?: string } | null)?.code;
+  const { profile } = useAuth();
+  const st = (location.state as { code?: string; id?: string | null; priority?: string } | null) ?? {};
+  const code = st.code;
   const returnTo = sessionStorage.getItem('wizardReturnTo');
   const inWalk = returnTo === '/erfasser/kontrollgang';
+  // Dringend + Auftragsrecht (Admin/Disponent) + Online-Schaden (echte ID) → Auftrag anbieten
+  const canMakeOrder = (profile?.role === 'admin' || profile?.role === 'dispatcher')
+    && st.priority === 'dringend' && !!st.id;
 
   return (
     <div className="flex h-screen flex-col bg-white">
@@ -17,6 +23,19 @@ export function NewDonePage() {
         <div className="mb-1 text-xl font-semibold text-slate-900">Schaden erfasst</div>
         {code && <div className="mb-1 text-sm text-slate-500">{code}</div>}
         <div className="mb-6 text-sm text-slate-600">An die Disposition übermittelt.</div>
+
+        {canMakeOrder && (
+          <div className="mb-4 w-full max-w-sm rounded-xl border border-red-200 bg-red-50 p-3 text-left">
+            <div className="mb-2 text-sm font-medium text-red-800">Dringender Schaden — sofort beauftragen?</div>
+            <button
+              onClick={() => { sessionStorage.removeItem('wizardReturnTo'); nav('/dispo/orders/new', { state: { damageIds: [st.id] } }); }}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white"
+            >
+              <PackagePlus className="h-4 w-4" /> Auftrag für Firma anlegen
+            </button>
+          </div>
+        )}
+
         <div className="w-full max-w-sm space-y-2">
           {inWalk && (
             <button

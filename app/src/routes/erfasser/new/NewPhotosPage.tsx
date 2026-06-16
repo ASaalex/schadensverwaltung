@@ -55,9 +55,10 @@ export function NewPhotosPage() {
     setSaveError(null);
     setProgress(null);
     try {
-      const code = await saveDamage(profile, wizardState, (p) => setProgress(p));
+      const priority = wizardState.priority;
+      const { code, id } = await saveDamage(profile, wizardState, (p) => setProgress(p));
       wizardState.reset();
-      nav('/erfasser/new/done', { state: { code }, replace: true });
+      nav('/erfasser/new/done', { state: { code, id, priority }, replace: true });
     } catch (e) {
       setSaveError((e as Error).message);
       setSaving(false);

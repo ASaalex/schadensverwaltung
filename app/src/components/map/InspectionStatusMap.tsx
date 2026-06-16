@@ -7,7 +7,7 @@
  * Klick auf einen Abschnitt → Historie (wann/von wem).
  */
 import { useEffect, useState } from 'react';
-import { MapContainer, Polyline, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, Tooltip, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { X, History, Loader2 } from 'lucide-react';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
@@ -29,7 +29,21 @@ function FitToSegments({ pts }: { pts: [number, number][] }) {
   return null;
 }
 
-export function InspectionStatusMap() {
+/** Folgt der aktuellen Position (Kontrollgang) */
+function FollowCurrent({ current }: { current: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => { if (current) map.setView(current, Math.max(map.getZoom(), 16)); }, [current, map]);
+  return null;
+}
+
+interface Props {
+  /** Live-Track des Kontrollgangs [lng,lat][] */
+  track?: number[][];
+  /** Aktuelle GPS-Position [lat,lng] */
+  current?: [number, number] | null;
+}
+
+export function InspectionStatusMap({ track, current }: Props = {}) {
   const { data: layers } = useMapLayers();
   const { data: segments = [] } = useNetworkSegments();
   const { data: statusMap = {} } = useSegmentStatus();
@@ -52,13 +66,22 @@ export function InspectionStatusMap() {
       };
     });
 
-  const center: [number, number] = allPts[0] ?? [50.9787, 11.0328];
+  const trackLatLng: [number, number][] = (track ?? []).map(([lng, lat]) => [lat, lng]);
+  const center: [number, number] = current ?? allPts[0] ?? [50.9787, 11.0328];
+  const isWalk = !!track || !!current;
 
   return (
     <div className="relative h-full w-full">
-      <MapContainer center={center} zoom={13} maxZoom={22} className="h-full w-full">
+      <MapContainer center={center} zoom={isWalk ? 17 : 13} maxZoom={22} className="h-full w-full">
         <MapLayerSwitcher layers={layers} maxZoom={22} />
-        <FitToSegments pts={allPts} />
+        {isWalk ? <FollowCurrent current={current ?? null} /> : <FitToSegments pts={allPts} />}
+        {trackLatLng.length >= 2 && (
+          <Polyline positions={trackLatLng} pathOptions={{ color: '#2563eb', weight: 4, opacity: 0.9 }} />
+        )}
+        {current && (
+          <CircleMarker center={current} radius={7}
+            pathOptions={{ color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }} />
+        )}
         {lines.map((l) => (
           <Polyline key={l.id} positions={l.positions}
             pathOptions={{

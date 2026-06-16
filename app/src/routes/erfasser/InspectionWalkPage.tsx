@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
-import { LeafletMap } from '@/components/map/LeafletMap';
+import { InspectionStatusMap } from '@/components/map/InspectionStatusMap';
 import { useInspectionWalk } from './inspectionWalkStore';
 import { lineLength, formatLength } from '@/lib/geoMeasure';
 import { supabase } from '@/lib/supabase';
@@ -41,7 +41,6 @@ export function ErfasserInspectionWalkPage() {
     }
   }
 
-  const center: [number, number] = current ?? [50.9787, 11.0328];
 
   return (
     <AppShell accent="blue" title="Kontrollgang" subtitle="Begehung aufzeichnen">
@@ -54,13 +53,8 @@ export function ErfasserInspectionWalkPage() {
 
         {/* Karte mit Track */}
         <div className="relative overflow-hidden rounded-2xl border shadow-sm" style={{ height: 'calc(100dvh - 320px)', minHeight: 280 }}>
-          <LeafletMap
-            center={center}
-            zoom={17}
-            markerPosition={current}
-            line={track.length >= 2 ? track : null}
-            allowOverlays={{ network: true, objects: false }}
-          />
+          {/* Netz nach Fälligkeit eingefärbt; Klick auf Abschnitt zeigt letzte Begehung */}
+          <InspectionStatusMap track={track} current={current} />
         </div>
 
         {/* Status */}
