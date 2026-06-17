@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
+import { authStorage } from './authStorage';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -17,6 +18,10 @@ export const supabase = createClient<Database>(url ?? '', anonKey ?? '', {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // Persistenter Storage (nativ via Capacitor Preferences) → Sitzung überlebt
+    // App-Kill/Wegwischen; im Web Fallback auf localStorage.
+    storage: authStorage,
+    storageKey: 'sb-schaden-auth',
   },
 });
 
