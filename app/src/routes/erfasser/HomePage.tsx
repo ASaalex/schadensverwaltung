@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/auth/AuthContext';
-import { MapPin, ChevronRight, Box, Footprints } from 'lucide-react';
+import { MapPin, ChevronRight, Box, Footprints, Camera } from 'lucide-react';
 
 interface MyDamage {
   id: string;
@@ -73,6 +73,19 @@ export function ErfasserHomePage() {
           <div className="text-left">
             <div className="text-lg font-semibold">Kontrollgang</div>
             <div className="text-sm text-emerald-100">Begehung aufzeichnen · Abschnitte abhaken</div>
+          </div>
+        </Link>
+
+        <Link
+          to="/erfasser/ar"
+          className="flex w-full items-center gap-4 rounded-2xl bg-slate-800 px-4 py-5 text-white shadow-lg active:scale-[0.98] transition"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/20">
+            <Camera className="h-7 w-7" />
+          </div>
+          <div className="text-left">
+            <div className="text-lg font-semibold">AR-Ansicht</div>
+            <div className="text-sm text-slate-300">Schäden &amp; Objekte im Kamerabild finden</div>
           </div>
         </Link>
 
