@@ -116,28 +116,7 @@ export function NewDetailsPage() {
           </div>
         )}
 
-        {/* Custom Fields */}
-        {category.property_schema.length > 0 && (
-          <div className="px-4 pt-4">
-            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-              <Sliders className="h-4 w-4 text-blue-600" />
-              Eigenschaften
-              <span className="text-xs font-normal text-slate-400">(aus Kategorie)</span>
-            </label>
-            <div className="space-y-3">
-              {category.property_schema.map((field) => (
-                <PropertyInput
-                  key={field.name}
-                  field={field}
-                  value={propertyValues[field.name]}
-                  onChange={(v) => setPropertyValue(field.name, v)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Priorität */}
+        {/* Priorität — zuerst */}
         <div className="px-4 pt-4">
           <label className="mb-2 block text-sm font-medium text-slate-700">Priorität</label>
           <div className="grid grid-cols-4 gap-1.5">
@@ -155,8 +134,8 @@ export function NewDetailsPage() {
           </div>
         </div>
 
-        {/* Bemerkung */}
-        <div className="px-4 py-4">
+        {/* Bemerkung — danach */}
+        <div className="px-4 pt-4">
           <label className="mb-2 block text-sm font-medium text-slate-700">
             Bemerkung <span className="font-normal text-slate-400">(optional)</span>
           </label>
@@ -168,6 +147,27 @@ export function NewDetailsPage() {
             placeholder="Was ist passiert / aufgefallen?"
           />
         </div>
+
+        {/* Zusatzfelder / Eigenschaften — zuletzt */}
+        {category.property_schema.length > 0 && (
+          <div className="px-4 pb-4 pt-4">
+            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Sliders className="h-4 w-4 text-blue-600" />
+              Eigenschaften
+              <span className="text-xs font-normal text-slate-400">(aus Kategorie)</span>
+            </label>
+            <div className="space-y-3">
+              {category.property_schema.map((field) => (
+                <PropertyInput
+                  key={field.name}
+                  field={field}
+                  value={propertyValues[field.name]}
+                  onChange={(v) => setPropertyValue(field.name, v)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between border-t bg-white px-4 py-3">
