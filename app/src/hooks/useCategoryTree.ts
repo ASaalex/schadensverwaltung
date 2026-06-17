@@ -14,8 +14,9 @@ export function useCategoryTree(options?: Options) {
   const cacheKey = `${CACHE_KEYS.categories}:${includeInactive ? 'all' : 'active'}`;
   return useQuery({
     queryKey: ['category-tree', includeInactive ? 'all' : 'active'],
-    // Initial-Wert aus Offline-Cache nutzen, damit die App auch ohne Netz Kategorien zeigt
-    initialData: () => {
+    // Cache nur als SOFORT-Anzeige (placeholder), damit beim Betreten trotzdem
+    // frisch nachgeladen wird (sonst „klebt" ein veralteter Katalog am Gerät).
+    placeholderData: () => {
       const cached = cacheGet<DamageCategory[]>(cacheKey);
       return cached ? buildCategoryTree(cached) : undefined;
     },
@@ -33,6 +34,8 @@ export function useCategoryTree(options?: Options) {
       cacheSet(cacheKey, list);
       return buildCategoryTree(list);
     },
-    staleTime: 5 * 60_000,
+    staleTime: 30_000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
 }
