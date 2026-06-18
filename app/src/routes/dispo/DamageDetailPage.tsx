@@ -201,7 +201,7 @@ export function DispoDamageDetailPage() {
               </div>
 
               {/* Eigenschaften */}
-              {data.category && data.category.property_schema.length > 0 && (
+              {data.category && Array.isArray(data.category.property_schema) && data.category.property_schema.length > 0 && (
                 <div className="rounded-xl border bg-white p-4">
                   <div className="mb-3 flex items-center gap-2 font-medium">
                     <Sliders className="h-4 w-4 text-blue-600" />
@@ -212,7 +212,7 @@ export function DispoDamageDetailPage() {
                   </div>
                   <div className="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
                     {data.category.property_schema.map((f: PropertyFieldDef) => {
-                      const v = (data.damage.property_values as Record<string, unknown>)[f.name];
+                      const v = ((data.damage.property_values ?? {}) as Record<string, unknown>)[f.name];
                       return (
                         <div key={f.name} className="flex justify-between border-b py-1 last:border-b-0">
                           <span className="text-muted-foreground">{f.label}</span>

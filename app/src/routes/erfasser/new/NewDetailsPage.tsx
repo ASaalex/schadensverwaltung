@@ -75,7 +75,7 @@ export function NewDetailsPage() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-white">
+    <div className="flex flex-col bg-white" style={{ height: '100dvh' }}>
       <WizardHeader step={3} title="Bemerkung & Eigenschaften" back="/erfasser/new/category" />
 
       <div className="flex-1 overflow-y-auto">

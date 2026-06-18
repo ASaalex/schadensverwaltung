@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Crosshair,
   Search,
-  Info,
   Pause,
   Play,
 } from 'lucide-react';
@@ -229,15 +228,6 @@ export function NewLocationPage() {
             </div>
           </>
         )}
-
-        <div className="mt-3 flex items-start gap-2 rounded-lg bg-blue-50 p-3 text-xs text-blue-900">
-          <Info className="h-4 w-4 flex-shrink-0" />
-          <div>
-            <strong>So setzt du die Position:</strong> tippen auf der Karte, Pin verschieben,
-            Adresse oben suchen, oder GPS aktivieren. Bei aktivem Live-GPS folgt der Pin deiner
-            Bewegung — praktisch wenn du zum Schaden hinläufst.
-          </div>
-        </div>
 
         {/* GPS-Tracking-Toggle + Re-Fetch */}
         <div className="mt-3 flex flex-wrap gap-2">

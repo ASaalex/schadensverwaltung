@@ -6,6 +6,7 @@ import { useNetworkNodes, type NetworkNode } from '@/hooks/useNetworkNodes';
 import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments';
 import { useNetworkObjectTypes, buildObjectTypeTree } from '@/hooks/useNetworkObjectTypes';
 import { useNetworkObjects, type NetworkObject } from '@/hooks/useNetworkObjects';
+import { useRoadClasses } from '@/hooks/useInspections';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
@@ -73,6 +74,8 @@ export function AdminNetworkPage() {
   const { data: segments = [], isLoading: segLoading, error: segError } = useNetworkSegments();
   const { query: objTypesQ, saveMut: objTypeSave, deleteMut: objTypeDel } = useNetworkObjectTypes();
   const { query: objsQ,     saveMut: objSave,     deleteMut: objDel     } = useNetworkObjects();
+  const { query: roadClassesQ } = useRoadClasses();
+  const customClasses = roadClassesQ.data ?? [];
   const objTypes = objTypesQ.data ?? [];
   const objs     = objsQ.data ?? [];
   const nodes: NetworkNode[] = nodesQ.data ?? [];
@@ -470,6 +473,7 @@ export function AdminNetworkPage() {
                         onChange={(e) => setSegForm((f) => ({ ...f, strassen_klasse_asb: e.target.value }))}
                         className="w-full rounded-lg border px-2 py-1.5 text-sm">
                         {Object.entries(ASB_KLASSEN).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        {customClasses.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
                       </select>
                     </div>
                     <div>
