@@ -26,7 +26,9 @@ CREATE POLICY rc_write ON road_classes FOR ALL
   WITH CHECK (company_id = current_user_company_id() AND current_user_role() = 'admin');
 
 -- 3) Status-View auf Tages-Intervall umstellen
-CREATE OR REPLACE VIEW segment_inspection_status
+-- (DROP nötig, da sich der Spaltenname interval_months → interval_days ändert)
+DROP VIEW IF EXISTS segment_inspection_status;
+CREATE VIEW segment_inspection_status
 WITH (security_invoker = on) AS
 SELECT
   s.id,
