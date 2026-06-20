@@ -638,7 +638,12 @@ export function DispoDamagesPage() {
               center={mapCenter}
               items={mapItems}
               selectedId={selectedId}
-              onPinClick={(id) => nav(`/dispo/damages/${id}`)}
+              bundledIds={bundleIds}
+              onPinSelect={(id) => {
+                setSelectedId(id);
+                const d = mapItems.find((x) => x.id === id);
+                if (d && isBundlable(d)) toggleBundle(id);
+              }}
               layers={layers}
               autoFit={false}
               onViewChange={(b) => handleMapView(b)}
