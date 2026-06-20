@@ -1,53 +1,75 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  deviceBasisFromEuler,
+  lerpBasis,
+  headingFromBasis,
+  rotateBasisAroundUp,
+  type DeviceBasis,
+} from '@/lib/arProjection';
 
 /**
- * Geräte-Kompass (Heading 0–360°, 0 = Norden, im Uhrzeigersinn) + Neigung (pitch).
- * iOS liefert webkitCompassHeading (true heading), Android nutzt absolute alpha.
- * requestPermission() muss per Nutzergeste aufgerufen werden (iOS 13+).
+ * Volle Geräteorientierung als Basisvektoren im Erd-Frame (für AR-Projektion).
+ * Android liefert über `deviceorientationabsolute` eine fusionierte, absolute
+ * Orientierung (Rotation-Vector-Sensor). iOS nutzt `webkitCompassHeading` als
+ * echten Nord-Bezug. requestOrientationPermission() muss per Nutzergeste
+ * laufen (iOS 13+).
  */
-export function useDeviceHeading(enabled: boolean) {
+export function useDeviceOrientation(enabled: boolean) {
+  const [basis, setBasis] = useState<DeviceBasis | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
-  const [pitch, setPitch] = useState<number>(0);
-  const headingRef = useRef<number | null>(null);
+  const [ready, setReady] = useState(false);
+  const basisRef = useRef<DeviceBasis | null>(null);
+  const headingOffsetRef = useRef(0);
 
   useEffect(() => {
     if (!enabled) return;
+    basisRef.current = null;
+    setReady(false);
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handler = (e: any) => {
-      let h: number | null = null;
-      if (typeof e.webkitCompassHeading === 'number') {
-        h = e.webkitCompassHeading; // iOS: bereits true heading, im Uhrzeigersinn
-      } else if (e.absolute && typeof e.alpha === 'number') {
-        h = (360 - e.alpha) % 360; // Android absolute
-      } else if (typeof e.alpha === 'number') {
-        h = (360 - e.alpha) % 360;
+      if (typeof e.alpha !== 'number' || typeof e.beta !== 'number' || typeof e.gamma !== 'number') return;
+
+      const hasCompass = typeof e.webkitCompassHeading === 'number' && !Number.isNaN(e.webkitCompassHeading);
+      // Nur nordbezogene Daten verwenden: absolutes Event ODER iOS-Kompass.
+      // Relative `deviceorientation`-Events (Android-Fallback) ignorieren –
+      // sie hätten keinen Nordbezug und würden die Ausrichtung verfälschen.
+      if (!e.absolute && !hasCompass) return;
+
+      let alpha = e.alpha;
+      if (hasCompass) {
+        // iOS: echten Nord-Bezug aus webkitCompassHeading herstellen
+        alpha = (360 - e.webkitCompassHeading) % 360;
       }
-      if (h != null && !Number.isNaN(h)) {
-        // leichte Glättung
-        const prev = headingRef.current;
-        const next = prev == null ? h : prev + angleDelta(prev, h) * 0.25;
-        headingRef.current = (next + 360) % 360;
-        setHeading(headingRef.current);
-      }
-      if (typeof e.beta === 'number') setPitch(e.beta);
+
+      const raw = deviceBasisFromEuler(alpha, e.beta, e.gamma);
+      // Glättung: stärker (schnell) wenn noch kein Wert, sonst sanft gegen Zittern
+      const smoothed = lerpBasis(basisRef.current, raw, basisRef.current ? 0.25 : 1);
+      basisRef.current = smoothed; // ungedreht speichern → Glättung bleibt stetig
+      // Manuellen Kompass-Offset auf die ausgegebene Basis anwenden
+      const corrected = rotateBasisAroundUp(smoothed, headingOffsetRef.current);
+      setBasis(corrected);
+      setHeading(headingFromBasis(corrected));
+      if (!ready) setReady(true);
     };
-    window.addEventListener('deviceorientationabsolute', handler as EventListener);
-    window.addEventListener('deviceorientation', handler as EventListener);
+
+    window.addEventListener('deviceorientationabsolute', handler as EventListener, true);
+    window.addEventListener('deviceorientation', handler as EventListener, true);
     return () => {
-      window.removeEventListener('deviceorientationabsolute', handler as EventListener);
-      window.removeEventListener('deviceorientation', handler as EventListener);
+      window.removeEventListener('deviceorientationabsolute', handler as EventListener, true);
+      window.removeEventListener('deviceorientation', handler as EventListener, true);
     };
+    // ready bewusst nicht in deps – würde Handler unnötig neu binden
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
-  return { heading, pitch };
+  /** Manueller Kompass-Offset (Grad) gegen Harteisen-Abweichung. */
+  const setHeadingOffset = (deg: number) => { headingOffsetRef.current = deg; };
+
+  return { basis, heading, ready, headingOffset: headingOffsetRef, setHeadingOffset };
 }
 
-function angleDelta(a: number, b: number): number {
-  let d = ((b - a + 540) % 360) - 180;
-  return d;
-}
-
-/** Anfrage der Sensor-Berechtigung (iOS). Gibt true zurück, wenn erlaubt/nicht nötig. */
+/** Anfrage der Sensor-Berechtigung (iOS). true = erlaubt/nicht nötig. */
 export async function requestOrientationPermission(): Promise<boolean> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const D = DeviceOrientationEvent as any;
@@ -62,12 +84,4 @@ export async function requestOrientationPermission(): Promise<boolean> {
   return true; // Android/Desktop: keine explizite Freigabe nötig
 }
 
-/** Peilung (bearing) von Punkt A nach B in Grad (0 = Nord, im Uhrzeigersinn). */
-export function bearingTo(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const φ1 = toRad(lat1), φ2 = toRad(lat2);
-  const Δλ = toRad(lng2 - lng1);
-  const y = Math.sin(Δλ) * Math.cos(φ2);
-  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
-  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
+export { bearingTo } from '@/lib/arProjection';

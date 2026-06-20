@@ -1,23 +1,29 @@
 /**
- * Geo-AR: Kamerabild als Hintergrund, Wimpel für Schäden/Objekte im Umkreis
- * (150 m), platziert nach GPS-Peilung + Geräte-Kompass. Tippen → Info.
- * Echtes welt-verankertes AR ist im Browser/iOS nicht verfügbar — daher
- * Richtungs-AR (grobe Lage + Distanz).
+ * Geo-AR: Kamerabild als Hintergrund, Marker für Schäden/Objekte im Umkreis
+ * (150 m). Die Platzierung nutzt eine echte Lochkamera-Projektion mit der
+ * vollen Geräteorientierung (Gier/Nick/Roll) + GPS-Peilung + Höhenwinkel —
+ * Marker bleiben beim Schwenken UND Kippen weltverankert. Tippen → Info.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
+import { Camera as CapCamera } from '@capacitor/camera';
+import { Geolocation } from '@capacitor/geolocation';
 import { useAuth } from '@/auth/AuthContext';
 import { useGpsWatch } from '@/hooks/useGeolocation';
-import { useDeviceHeading, requestOrientationPermission, bearingTo } from '@/hooks/useDeviceHeading';
+import { useDeviceOrientation, requestOrientationPermission, bearingTo } from '@/hooks/useDeviceHeading';
 import { useDamagesInBounds, type DamageFilters } from '@/hooks/useDamagesQuery';
 import { useObjectsInBounds } from '@/hooks/useObjectsInBounds';
 import { objectCenter, useNetworkObject } from '@/hooks/useNetworkObjects';
 import { useDamageDetail } from '@/hooks/useDamageDetail';
 import { haversineDistance } from '@/lib/geoMeasure';
-import { Camera, X, AlertTriangle, Box, Navigation2, Compass } from 'lucide-react';
+import {
+  worldDirection, projectDirection, effectiveFov, groundElevation,
+} from '@/lib/arProjection';
+import { Camera, X, AlertTriangle, Box, Navigation2, Compass, SlidersHorizontal } from 'lucide-react';
 
 const RADIUS_M = 150;
-const FOV = 60; // angenommenes horizontales Sichtfeld der Kamera in Grad
+const DEFAULT_HFOV = 67; // horizontales FOV des vollen Kamerabildes (kalibrierbar)
 
 type Target = {
   kind: 'damage' | 'object';
@@ -31,6 +37,7 @@ export function ARViewPage() {
   const nav = useNavigate();
   const { profile } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,13 +46,43 @@ export function ARViewPage() {
   const [zoom, setZoom] = useState(1);
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null);
   const { position } = useGpsWatch(started);
-  const { heading } = useDeviceHeading(started);
+  const { basis, heading, ready, setHeadingOffset } = useDeviceOrientation(started);
 
-  // Kamerabild zuverlässig anbinden — erst NACHDEM das <video> gemountet ist
+  // Kalibrierung
+  const [showCal, setShowCal] = useState(false);
+  const [baseHFov, setBaseHFov] = useState(DEFAULT_HFOV);
+  const [headingOff, setHeadingOff] = useState(0);
+  useEffect(() => { setHeadingOffset(headingOff); }, [headingOff, setHeadingOffset]);
+
+  // Video- und Container-Maße (für object-cover-FOV)
+  const [videoSize, setVideoSize] = useState({ w: 0, h: 0 });
+  const [contSize, setContSize] = useState({ w: 0, h: 0 });
+  const [screenAngle, setScreenAngle] = useState(0);
+
+  // Kamerabild anbinden — erst NACHDEM das <video> gemountet ist
   useEffect(() => {
     if (!started || !videoRef.current || !streamRef.current) return;
     videoRef.current.srcObject = streamRef.current;
     videoRef.current.play().catch(() => {});
+  }, [started]);
+
+  // Container-Größe + Bildschirm-Drehung beobachten
+  useEffect(() => {
+    if (!started) return;
+    const measure = () => {
+      const el = containerRef.current;
+      if (el) setContSize({ w: el.clientWidth, h: el.clientHeight });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const a = (screen.orientation?.angle ?? (window as any).orientation ?? 0) as number;
+      setScreenAngle(((a % 360) + 360) % 360);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
   }, [started]);
 
   function onTouchMove(e: React.TouchEvent) {
@@ -59,7 +96,7 @@ export function ARViewPage() {
   }
   function onTouchEnd() { pinchRef.current = null; }
 
-  // Daten im 150-m-Umkreis (kleiner BBox)
+  // Daten im 150-m-Umkreis (kleine BBox)
   const bounds = useMemo(() => {
     if (!position) return null;
     const dLat = 0.0014; // ~155 m
@@ -73,17 +110,20 @@ export function ARViewPage() {
   const { data: damageData } = useDamagesInBounds(damageFilters, bounds, started && !!bounds);
   const { data: objects = [] } = useObjectsInBounds(bounds, started && !!bounds);
 
-  // Kamera starten
   async function start() {
     setError(null);
     try {
+      // Native Berechtigungen (Android/iOS) – nötig, damit getUserMedia & GPS greifen
+      if (Capacitor.isNativePlatform()) {
+        await CapCamera.requestPermissions({ permissions: ['camera'] }).catch(() => {});
+        await Geolocation.requestPermissions().catch(() => {});
+      }
       await requestOrientationPermission();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } }, audio: false,
       });
       streamRef.current = stream;
-      setStarted(true); // <video> wird gemountet → Effekt bindet den Stream an
-
+      setStarted(true);
     } catch (e) {
       setError('Kamera-/Sensorzugriff nicht möglich: ' + (e as Error).message);
     }
@@ -116,17 +156,28 @@ export function ARViewPage() {
     return out;
   }, [position, damageData, objects]);
 
-  // Sichtbare Wimpel berechnen (innerhalb FOV, ≤ Radius)
-  const visible = useMemo(() => {
-    if (!position || heading == null) return [];
+  // Effektives FOV des sichtbaren (object-cover-)Bildes, inkl. Digitalzoom
+  const fov = useMemo(
+    () => effectiveFov(baseHFov, videoSize.w, videoSize.h, contSize.w, contSize.h, zoom),
+    [baseHFov, videoSize, contSize, zoom],
+  );
+
+  // Sichtbare/projizierte Marker berechnen
+  const placed = useMemo(() => {
+    if (!position || !basis) return [];
     return targets.map((t) => {
       const dist = haversineDistance([position.lng, position.lat], [t.lng, t.lat]);
       const brg = bearingTo(position.lat, position.lng, t.lat, t.lng);
-      let diff = ((brg - heading + 540) % 360) - 180; // -180..180
-      return { t, dist, diff };
-    }).filter((v) => v.dist <= RADIUS_M && Math.abs(v.diff) <= FOV / 2 + 8)
+      const elev = groundElevation(dist);
+      const dir = worldDirection(brg, elev);
+      const p = projectDirection(basis, dir, fov.hFov, fov.vFov, screenAngle);
+      return { t, dist, p };
+    })
+      .filter((m) => m.dist <= RADIUS_M && m.p.inFront)
       .sort((a, b) => b.dist - a.dist); // ferne zuerst zeichnen
-  }, [targets, position, heading]);
+  }, [targets, position, basis, fov, screenAngle]);
+
+  const onScreenCount = placed.filter((m) => m.p.onScreen).length;
 
   // ── Start-Gate ──────────────────────────────────────────────────────────────
   if (!started) {
@@ -136,7 +187,7 @@ export function ARViewPage() {
         <h1 className="mb-2 text-xl font-bold">AR-Ansicht</h1>
         <p className="mb-6 max-w-sm text-sm text-white/70">
           Halte das Handy hoch und schwenke umher. Schäden und Objekte im Umkreis von 150 m
-          werden als Wimpel im Kamerabild angezeigt. Lage ist ungefähr (GPS + Kompass).
+          werden lagerichtig ins Kamerabild eingeblendet (GPS + Kompass + Neigung).
         </p>
         {error && <p className="mb-4 max-w-sm rounded-lg bg-red-500/20 p-3 text-sm text-red-200">{error}</p>}
         <button onClick={start} className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold">
@@ -148,43 +199,51 @@ export function ARViewPage() {
   }
 
   return (
-    <div className="fixed inset-0 z-[2000] overflow-hidden bg-black"
+    <div ref={containerRef} className="fixed inset-0 z-[2000] overflow-hidden bg-black"
       onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      {/* Skalierbare Szene: Kamera + Wimpel zoomen gemeinsam → bleiben ausgerichtet */}
-      <div className="absolute inset-0" style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}>
-        <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
-        <div className="absolute inset-0">
-          {visible.map(({ t, dist, diff }) => {
-            const xPct = 50 + (diff / (FOV / 2)) * 50;
-            const mscale = Math.max(0.6, Math.min(1.3, 1.3 - dist / 300));
-            const yPct = 42 + Math.min(18, dist / 12);
-            const Icon = t.kind === 'object' ? Box : AlertTriangle;
-            return (
-              <button key={`${t.kind}-${t.id}`}
-                onClick={() => setSelected(t)}
-                style={{ left: `${xPct}%`, top: `${yPct}%`, transform: `translate(-50%,-100%) scale(${mscale})` }}
-                className="absolute flex flex-col items-center">
-                <div className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-white shadow-lg"
-                  style={{ background: t.color }}>
-                  <Icon className="h-3.5 w-3.5" /> {Math.round(dist)} m
-                </div>
-                <div className="max-w-[120px] truncate rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">{t.title}</div>
-                <div style={{ borderTopColor: t.color }} className="h-0 w-0 border-x-[6px] border-t-[10px] border-x-transparent" />
-              </button>
-            );
-          })}
-        </div>
+      {/* Kamerabild – Digitalzoom per CSS (zentriert), Marker liegen unskaliert darüber */}
+      <video ref={videoRef}
+        onLoadedMetadata={(e) => setVideoSize({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })}
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+        playsInline muted autoPlay />
+
+      {/* Marker-Overlay */}
+      <div className="absolute inset-0">
+        {placed.map(({ t, dist, p }) => {
+          // Auf Bildkante klemmen, wenn vor der Kamera aber außerhalb des Ausschnitts
+          const clampX = Math.max(3, Math.min(97, p.xPct));
+          const clampY = Math.max(8, Math.min(92, p.yPct));
+          const off = !p.onScreen;
+          const mscale = Math.max(0.6, Math.min(1.3, 1.3 - dist / 300));
+          const Icon = t.kind === 'object' ? Box : AlertTriangle;
+          return (
+            <button key={`${t.kind}-${t.id}`}
+              onClick={() => setSelected(t)}
+              style={{ left: `${clampX}%`, top: `${clampY}%`, transform: `translate(-50%,-100%) scale(${mscale})`, opacity: off ? 0.5 : 1 }}
+              className="absolute flex flex-col items-center">
+              <div className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-white shadow-lg"
+                style={{ background: t.color }}>
+                <Icon className="h-3.5 w-3.5" /> {Math.round(dist)} m
+              </div>
+              <div className="max-w-[120px] truncate rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">{t.title}</div>
+              {!off && <div style={{ borderTopColor: t.color }} className="h-0 w-0 border-x-[6px] border-t-[10px] border-x-transparent" />}
+            </button>
+          );
+        })}
       </div>
 
       {/* Kompass-Hinweis (nicht skaliert) */}
-      {heading == null && (
+      {!ready && (
         <div className="absolute left-1/2 top-14 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white flex items-center gap-1.5">
           <Compass className="h-3.5 w-3.5 animate-pulse" /> Kompass wird kalibriert … (Gerät in Acht bewegen)
         </div>
       )}
 
-      {/* Zoom-Steuerung */}
+      {/* Steuerung rechts */}
       <div className="absolute bottom-4 right-3 z-[2050] flex flex-col gap-2">
+        <button onClick={() => setShowCal((s) => !s)}
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white"><SlidersHorizontal className="h-5 w-5" /></button>
         <button onClick={() => setZoom((z) => Math.min(4, z + 0.5))}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-2xl font-light text-white">+</button>
         <button onClick={() => setZoom((z) => Math.max(1, z - 0.5))}
@@ -192,10 +251,26 @@ export function ARViewPage() {
         {zoom > 1 && <div className="rounded-full bg-black/55 px-2 py-0.5 text-center text-[10px] text-white">{zoom.toFixed(1)}×</div>}
       </div>
 
+      {/* Kalibrier-Panel */}
+      {showCal && (
+        <div className="absolute bottom-4 left-3 z-[2050] w-56 rounded-xl bg-black/75 p-3 text-white">
+          <div className="mb-2 text-xs font-semibold">Kalibrierung</div>
+          <label className="mb-1 block text-[11px] text-white/80">Sichtfeld {Math.round(baseHFov)}°</label>
+          <input type="range" min={45} max={85} step={1} value={baseHFov}
+            onChange={(e) => setBaseHFov(Number(e.target.value))} className="mb-3 w-full" />
+          <label className="mb-1 block text-[11px] text-white/80">Kompass-Korrektur {headingOff > 0 ? '+' : ''}{headingOff}°</label>
+          <input type="range" min={-30} max={30} step={1} value={headingOff}
+            onChange={(e) => setHeadingOff(Number(e.target.value))} className="w-full" />
+          <button onClick={() => { setBaseHFov(DEFAULT_HFOV); setHeadingOff(0); }}
+            className="mt-2 w-full rounded bg-white/15 py-1 text-[11px]">Zurücksetzen</button>
+        </div>
+      )}
+
       {/* Kopfzeile */}
       <div className="absolute left-0 right-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3 text-white">
         <span className="flex items-center gap-1.5 text-sm">
-          <Navigation2 className="h-4 w-4" /> {visible.length} im Blick · {targets.length} im Umkreis
+          <Navigation2 className="h-4 w-4" /> {onScreenCount} im Blick · {placed.length} im Umkreis
+          {heading != null && <span className="ml-1 text-white/60">· {Math.round(heading)}°</span>}
         </span>
         <button onClick={() => { streamRef.current?.getTracks().forEach((t) => t.stop()); nav('/erfasser'); }}
           className="rounded-full bg-black/50 p-2"><X className="h-5 w-5" /></button>

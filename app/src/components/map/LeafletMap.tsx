@@ -118,7 +118,7 @@ export function LeafletMap({
           position={markerPosition}
           draggable={draggableMarker}
           ref={markerRef}
-          icon={crosshair ? CROSSHAIR_ICON : undefined}
+          {...(crosshair ? { icon: CROSSHAIR_ICON } : {})}
           eventHandlers={
             draggableMarker
               ? {
