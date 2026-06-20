@@ -5,6 +5,7 @@ import { AdminCategoriesPage } from './CategoriesPage';
 import { AdminNetworkPage } from './NetworkPage';
 import { AdminIntervalsPage } from './IntervalsPage';
 import { AdminPrintTemplatePage } from './PrintTemplatePage';
+import { AdminBackupPage } from './BackupPage';
 
 export function AdminRoutes() {
   return (
@@ -16,6 +17,7 @@ export function AdminRoutes() {
       <Route path="network" element={<AdminNetworkPage />} />
       <Route path="intervals" element={<AdminIntervalsPage />} />
       <Route path="print-templates" element={<AdminPrintTemplatePage />} />
+      <Route path="backup" element={<AdminBackupPage />} />
       <Route path="*" element={<Navigate to="/admin/users" replace />} />
     </Routes>
   );

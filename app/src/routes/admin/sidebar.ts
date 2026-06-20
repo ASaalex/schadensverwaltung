@@ -1,4 +1,4 @@
-import { Users, Building2, ListTree, Route, Printer, CalendarClock } from 'lucide-react';
+import { Users, Building2, ListTree, Route, Printer, CalendarClock, DatabaseBackup } from 'lucide-react';
 import type { NavItem } from '@/components/layout/AppShell';
 
 export const ADMIN_SIDEBAR: NavItem[] = [
@@ -8,4 +8,5 @@ export const ADMIN_SIDEBAR: NavItem[] = [
   { to: '/admin/network',         icon: Route,    label: 'Straßennetz' },
   { to: '/admin/intervals',       icon: CalendarClock, label: 'Kontrollintervalle' },
   { to: '/admin/print-templates', icon: Printer,  label: 'Druckvorlagen' },
+  { to: '/admin/backup',          icon: DatabaseBackup, label: 'Datensicherung' },
 ];
