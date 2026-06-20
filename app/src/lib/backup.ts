@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { zip, unzip, type Unzipped } from 'fflate';
 
 /**
  * Daten-Sicherung (Export/Import) je Firma als JSON.
@@ -114,6 +115,92 @@ export async function importBackup(file: BackupFile, onProgress?: ProgressFn): P
     results.push({ table: t.name, ok, failed, error: firstErr });
   }
   return results;
+}
+
+// =============================================================================
+//  Datei-Sicherung (Storage: Fotos & Dokumente) als separates ZIP
+// =============================================================================
+
+/** Welche Tabelle/Spalte auf welchen Storage-Bucket verweist. */
+const STORAGE_SOURCES = [
+  { bucket: 'damage-photos',    table: 'damage_photos',            col: 'storage_path' },
+  { bucket: 'object-documents', table: 'network_object_documents', col: 'storage_path' },
+];
+
+function guessMime(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  switch (ext) {
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'webp': return 'image/webp';
+    case 'gif': return 'image/gif';
+    case 'heic': return 'image/heic';
+    case 'pdf': return 'application/pdf';
+    default: return 'application/octet-stream';
+  }
+}
+
+/** Sammelt alle Storage-Pfade aus den DB-Verweisen (RLS-gescopt). */
+async function collectStoragePaths(): Promise<{ bucket: string; path: string }[]> {
+  const out: { bucket: string; path: string }[] = [];
+  for (const s of STORAGE_SOURCES) {
+    let rows: Array<Record<string, unknown>> = [];
+    try { rows = await fetchAll(s.table); } catch { rows = []; }
+    for (const r of rows) {
+      const p = r[s.col];
+      if (typeof p === 'string' && p) out.push({ bucket: s.bucket, path: p });
+    }
+  }
+  return out;
+}
+
+/** Lädt alle referenzierten Dateien herunter und packt sie in ein ZIP (Pfad = bucket/path). */
+export async function exportStorageZip(onProgress?: ProgressFn): Promise<{ blob: Blob; count: number; missing: number }> {
+  const items = await collectStoragePaths();
+  const files: Record<string, Uint8Array> = {};
+  let missing = 0;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    onProgress?.(`Lade Datei ${i + 1}/${items.length} …`);
+    const { data, error } = await supabase.storage.from(it.bucket).download(it.path);
+    if (error || !data) { missing++; continue; }
+    files[`${it.bucket}/${it.path}`] = new Uint8Array(await data.arrayBuffer());
+  }
+  // level 0 = "store": Bilder/PDF sind bereits komprimiert → kein CPU verschwenden
+  const zipped: Uint8Array = await new Promise((resolve, reject) =>
+    zip(files, { level: 0 }, (err, d) => (err ? reject(err) : resolve(d))));
+  return { blob: new Blob([zipped as unknown as BlobPart], { type: 'application/zip' }), count: Object.keys(files).length, missing };
+}
+
+export interface StorageImportResult { ok: number; failed: number; }
+
+/** Spielt ein zuvor erstelltes Datei-ZIP zurück in die Storage-Buckets. */
+export async function importStorageZip(zipBlob: Blob, onProgress?: ProgressFn): Promise<StorageImportResult> {
+  const buf = new Uint8Array(await zipBlob.arrayBuffer());
+  const entries: Unzipped = await new Promise((resolve, reject) =>
+    unzip(buf, (err, d) => (err ? reject(err) : resolve(d))));
+  const names = Object.keys(entries).filter((n) => !n.endsWith('/') && n.includes('/'));
+  let ok = 0, failed = 0;
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    onProgress?.(`Stelle Datei ${i + 1}/${names.length} her …`);
+    const slash = name.indexOf('/');
+    const bucket = name.slice(0, slash);
+    const path = name.slice(slash + 1);
+    const body = new Blob([entries[name] as unknown as BlobPart], { type: guessMime(path) });
+    const { error } = await supabase.storage.from(bucket).upload(path, body, { upsert: true, contentType: guessMime(path) });
+    if (error) failed++; else ok++;
+  }
+  return { ok, failed };
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export function downloadBackup(file: BackupFile) {
