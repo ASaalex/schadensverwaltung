@@ -176,13 +176,6 @@ export function DispoDashboardPage() {
               <span className="flex items-center gap-2"><Plus className="h-4 w-4 text-violet-500" /> Neuer Auftrag</span>
               <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
             </button>
-            <button
-              onClick={() => nav('/dispo/import')}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-slate-50"
-            >
-              <span className="flex items-center gap-2"><ClipboardPlus className="h-4 w-4 text-slate-500" /> CSV-Import</span>
-              <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
-            </button>
           </div>
         </div>
       </div>

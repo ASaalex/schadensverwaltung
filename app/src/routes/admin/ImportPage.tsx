@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
-import { DISPO_SIDEBAR } from './sidebar';
+import { ADMIN_SIDEBAR } from './sidebar';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { useCategoryTree } from '@/hooks/useCategoryTree';
@@ -20,7 +20,7 @@ import { Upload, FileText, ArrowLeft, AlertCircle, CheckCircle2, Loader2 } from 
 
 type Step = 'upload' | 'mapping' | 'preview' | 'done';
 
-export function DispoImportPage() {
+export function AdminImportPage() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const { profile } = useAuth();
@@ -122,7 +122,7 @@ export function DispoImportPage() {
   }
 
   return (
-    <AppShell title="Disposition" subtitle="CSV-Import" sidebar={DISPO_SIDEBAR}>
+    <AppShell title="Administration" subtitle="CSV-Import" sidebar={ADMIN_SIDEBAR}>
       <button onClick={() => nav('/dispo/damages')} className="mb-3 flex items-center gap-1 text-sm text-slate-500">
         <ArrowLeft className="h-4 w-4" /> Zurück zu den Schäden
       </button>
