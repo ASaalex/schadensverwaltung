@@ -1,8 +1,9 @@
 /**
  * Karte des Straßennetzes mit Fälligkeits-Ampel + Begehungs-Historie.
- *  rot  = überfällig oder fällig in <= 10 Tagen (auch: nie begangen)
- *  gelb = fällig in 11..30 Tagen
- *  grün = fällig in > 30 Tagen
+ * Schwellen relativ zum Kontrollintervall (serverseitig in segment_inspection_status):
+ *  rot  = überfällig / nie begangen / Restzeit <= 10 % des Intervalls
+ *  gelb = Restzeit <= 25 % des Intervalls
+ *  grün = sonst
  *  grau = keine Kontrollpflicht (Netz-Farbe)
  * Klick auf einen Abschnitt → Historie (wann/von wem).
  */
@@ -113,7 +114,7 @@ export function InspectionStatusMap({ track, current }: Props = {}) {
 
       {/* Legende */}
       <div className="absolute bottom-2 left-2 z-[1000] flex flex-wrap gap-3 rounded bg-white/95 px-3 py-1.5 text-xs shadow">
-        {[['red', 'überfällig / ≤ 10 Tage'], ['yellow', '11–30 Tage'], ['green', '> 30 Tage'], ['none', 'keine Kontrolle']].map(([k, label]) => (
+        {[['red', 'überfällig / bald fällig'], ['yellow', 'fällig in Kürze'], ['green', 'im Plan'], ['none', 'keine Kontrolle']].map(([k, label]) => (
           <span key={k} className="flex items-center gap-1.5">
             <span className="h-2.5 w-4 rounded" style={{ background: STATUS_COLOR[k] }} />
             <span className="text-slate-700">{label}</span>
