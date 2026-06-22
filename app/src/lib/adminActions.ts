@@ -210,6 +210,23 @@ export async function updateCompanyActive(id: string, active: boolean): Promise<
   if (error) throw new Error(`Firma aktualisieren fehlgeschlagen: ${error.message}`);
 }
 
+/**
+ * Löscht eine Firma endgültig. Über Fremdschlüssel-CASCADE werden zugehörige
+ * Daten (Nutzerprofile, Schäden, Netz, Aufträge …) mitgelöscht. Ist die Firma
+ * noch als ausführende Firma (assigned_company_id) an einem Auftrag hinterlegt,
+ * verhindert die DB (ON DELETE RESTRICT) das Löschen – die Meldung wird
+ * weitergereicht.
+ */
+export async function deleteCompany(id: string): Promise<void> {
+  const { error } = await supabase.from('companies').delete().eq('id', id);
+  if (error) {
+    const msg = /violates foreign key|restrict/i.test(error.message)
+      ? 'Firma ist noch als ausführende Firma in Aufträgen hinterlegt und kann daher nicht gelöscht werden. Bitte zuerst die betroffenen Aufträge entfernen oder umbuchen.'
+      : error.message;
+    throw new Error(`Firma löschen fehlgeschlagen: ${msg}`);
+  }
+}
+
 // =============================================================================
 //  KATEGORIEN
 // =============================================================================

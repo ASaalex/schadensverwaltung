@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/AppShell';
 import { Modal } from '@/components/ui/Modal';
 import { supabase } from '@/lib/supabase';
-import { createCompany, updateCompany, updateCompanyActive } from '@/lib/adminActions';
+import { createCompany, updateCompany, updateCompanyActive, deleteCompany } from '@/lib/adminActions';
 import { ADMIN_SIDEBAR } from './sidebar';
-import { Building2, User, Mail, Plus, Loader2, AlertCircle, Edit3 } from 'lucide-react';
+import { Building2, User, Mail, Plus, Loader2, AlertCircle, Edit3, Trash2, AlertTriangle } from 'lucide-react';
 import type { CompanyType } from '@/types/database';
 
 interface Row {
@@ -43,6 +43,27 @@ export function AdminCompaniesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Löschen
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true); setDeleteError(null);
+    try {
+      await deleteCompany(deleteTarget.id);
+      await qc.invalidateQueries({ queryKey: ['admin-companies'] });
+      await qc.invalidateQueries({ queryKey: ['companies'] });
+      setDeleteTarget(null); setDeleteConfirm('');
+    } catch (e) {
+      setDeleteError((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function openCreate() {
     setEditingId(null);
@@ -188,6 +209,12 @@ export function AdminCompaniesPage() {
                 >
                   {c.active ? 'Deaktivieren' : 'Aktivieren'}
                 </button>
+                <button
+                  onClick={() => { setDeleteTarget(c); setDeleteConfirm(''); setDeleteError(null); }}
+                  className="flex items-center gap-1 text-red-600 hover:underline"
+                >
+                  <Trash2 className="h-3 w-3" /> Löschen
+                </button>
               </div>
             </div>
           </div>
@@ -286,6 +313,62 @@ export function AdminCompaniesPage() {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* ============ LÖSCH-BESTÄTIGUNG ============ */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+        title="Firma löschen"
+        size="md"
+      >
+        {deleteTarget && (
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              <div>
+                <p className="font-semibold">{deleteTarget.name} endgültig löschen?</p>
+                <p className="mt-1">
+                  Dabei werden <strong>alle</strong> zugehörigen Daten dieser Firma unwiderruflich
+                  gelöscht: Nutzerprofile, Schäden, Objekte, Straßennetz, Aufträge und Konfigurationen.
+                  Dieser Vorgang kann nicht rückgängig gemacht werden.
+                </p>
+              </div>
+            </div>
+            {deleteError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" /> {deleteError}
+              </div>
+            )}
+            <Field label={`Zum Bestätigen Firmennamen eingeben: ${deleteTarget.name}`}>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                className="w-full rounded-lg border px-3 py-2 text-sm"
+                placeholder={deleteTarget.name}
+                autoFocus
+              />
+            </Field>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-lg border bg-white px-4 py-2 text-sm hover:bg-slate-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting || deleteConfirm.trim() !== deleteTarget.name}
+                className="flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Endgültig löschen
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </AppShell>
   );

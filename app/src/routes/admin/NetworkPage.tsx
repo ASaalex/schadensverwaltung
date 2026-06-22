@@ -7,6 +7,8 @@ import { useNetworkSegments, type RoadSegment } from '@/hooks/useNetworkSegments
 import { useNetworkObjectTypes, buildObjectTypeTree } from '@/hooks/useNetworkObjectTypes';
 import { useNetworkObjects, type NetworkObject } from '@/hooks/useNetworkObjects';
 import { useRoadClasses } from '@/hooks/useInspections';
+import { useSegmentShares } from '@/hooks/useSegmentShares';
+import { useCompanies } from '@/hooks/useCompanies';
 import { useAuth } from '@/auth/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { NetworkEditorMap } from '@/components/map/NetworkEditorMap';
@@ -114,6 +116,14 @@ export function AdminNetworkPage() {
   const [intermediate, setIntermediate] = useState<number[][]>([]);
   const [segForm, setSegForm] = useState<SegForm>(EMPTY_SEG);
   const [editSegId, setEditSegId] = useState<string | null>(null);
+  // Sichtbarkeits-Freigaben des Abschnitts an weitere Firmen
+  const [shareIds, setShareIds] = useState<string[]>([]);
+  const { query: sharesQ, saveMut: sharesSave } = useSegmentShares(editSegId);
+  const { data: companies = [] } = useCompanies();
+  const otherCompanies = companies.filter((c) => c.id !== profile?.company_id);
+  useEffect(() => {
+    if (editSegId && sharesQ.data) setShareIds(sharesQ.data);
+  }, [editSegId, sharesQ.data]);
   const [deleteSegId, setDeleteSegId] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState(TODAY);
   const [segSearch, setSegSearch] = useState('');
@@ -190,6 +200,7 @@ export function AdminNetworkPage() {
   function resetSegment() {
     setFromNodeId(null); setToNodeId(null);
     setIntermediate([]); setSegForm(EMPTY_SEG); setEditSegId(null);
+    setShareIds([]);
   }
 
   function loadSegForEdit(seg: RoadSegment) {
@@ -249,10 +260,17 @@ export function AdminNetworkPage() {
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tbl = (supabase as any).from('road_segments');
-      const { error } = editSegId
-        ? await tbl.update(payload).eq('id', editSegId)
-        : await tbl.insert(payload);
-      if (error) throw error;
+      let segId = editSegId;
+      if (editSegId) {
+        const { error } = await tbl.update(payload).eq('id', editSegId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await tbl.insert(payload).select('id').single();
+        if (error) throw error;
+        segId = data.id as string;
+      }
+      // Sichtbarkeits-Freigaben an weitere Firmen synchronisieren
+      await sharesSave.mutateAsync({ segId: segId!, companyIds: shareIds });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['road-segments'] });
@@ -552,6 +570,38 @@ export function AdminNetworkPage() {
                         min={segForm.gueltig_von}
                         className="w-full rounded-lg border px-2 py-1.5 text-sm" />
                     </div>
+                  </div>
+
+                  {/* Sichtbarkeit für weitere Firmen (read-only) */}
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-700">
+                      Zusätzlich sichtbar für
+                    </label>
+                    {otherCompanies.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">Keine weiteren Firmen vorhanden.</p>
+                    ) : (
+                      <div className="max-h-32 space-y-1 overflow-y-auto rounded-lg border p-2">
+                        {otherCompanies.map((c) => (
+                          <label key={c.id} className="flex cursor-pointer items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={shareIds.includes(c.id)}
+                              onChange={(e) =>
+                                setShareIds((ids) =>
+                                  e.target.checked ? [...ids, c.id] : ids.filter((x) => x !== c.id),
+                                )
+                              }
+                              className="h-3.5 w-3.5"
+                            />
+                            <span>{c.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Andere Firmen sehen den Abschnitt nur (read-only). Pflege, Kontrolle und
+                      Fälligkeit bleiben bei deiner Firma.
+                    </p>
                   </div>
 
                   <div className="flex-1" />
