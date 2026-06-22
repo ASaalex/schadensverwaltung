@@ -644,6 +644,7 @@ export function DispoDamagesPage() {
                 const d = mapItems.find((x) => x.id === id);
                 if (d && isBundlable(d)) toggleBundle(id);
               }}
+              onPinOpen={(id) => nav(`/dispo/damages/${id}`)}
               layers={layers}
               autoFit={false}
               onViewChange={(b) => handleMapView(b)}

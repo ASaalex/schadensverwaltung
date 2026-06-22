@@ -122,6 +122,8 @@ interface Props {
   selectedId?: string | null;
   /** Hover/Klick-Auswahl auf der Karte → in Tabelle selektieren */
   onPinSelect?: (id: string) => void;
+  /** Rechtsklick auf einen Pin → Schaden öffnen */
+  onPinOpen?: (id: string) => void;
   /** IDs der für einen Auftrag gebündelten Schäden (grün markiert) */
   bundledIds?: Set<string>;
   layers?: MapLayer[];
@@ -135,7 +137,7 @@ interface Props {
 }
 
 export function DamagesMap({
-  center, items, selectedId, onPinSelect, bundledIds, layers, className,
+  center, items, selectedId, onPinSelect, onPinOpen, bundledIds, layers, className,
   autoFit = true, onViewChange, allowOverlays,
 }: Props) {
   const { data: segments = [] } = useNetworkSegments();
@@ -183,7 +185,10 @@ export function DamagesMap({
                 key={d.id}
                 position={[d.gps_lat!, d.gps_lng!]}
                 icon={buildIcon(STATUS_COLORS[d.status] ?? '#94a3b8', d.id === selectedId, bundled)}
-                eventHandlers={{ click: () => onPinSelect?.(d.id) }}
+                eventHandlers={{
+                  click: () => onPinSelect?.(d.id),
+                  contextmenu: (e) => { e.originalEvent.preventDefault(); onPinOpen?.(d.id); },
+                }}
               >
                 {/* Hover-Infobox statt sofortiger Navigation */}
                 <Tooltip direction="top" offset={[0, -28]} opacity={1}>
@@ -196,7 +201,7 @@ export function DamagesMap({
                     {addrLine && <div className="text-slate-500">{addrLine}</div>}
                     <div className="text-slate-500">Priorität: {PRIO_LABEL[d.priority] ?? d.priority}</div>
                     {d.description && <div className="max-w-[200px] truncate text-slate-400">{d.description}</div>}
-                    <div className="pt-0.5 text-[10px] text-blue-600">{bundled ? '✓ ausgewählt – Klick entfernt' : 'Klicken zum Auswählen'}</div>
+                    <div className="pt-0.5 text-[10px] text-blue-600">{bundled ? '✓ ausgewählt – Klick entfernt' : 'Klick: auswählen · Rechtsklick: öffnen'}</div>
                   </div>
                 </Tooltip>
               </Marker>
