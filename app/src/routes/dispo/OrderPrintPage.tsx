@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { useOrderDetail } from '@/hooks/useOrderDetail';
@@ -6,8 +6,10 @@ import { fetchDamageDetail, type DamageDetail } from '@/hooks/useDamageDetail';
 import { DamagePrintCard } from '@/components/print/DamagePrintCard';
 import { usePrintConfig } from '@/hooks/usePrintConfig';
 import { useCustomFields } from '@/hooks/useCustomFields';
-import { ArrowLeft, Printer, FileDown, Construction, Loader2 } from 'lucide-react';
+import { ArrowLeft, Printer, FileDown, Construction, Loader2, Mail, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/auth/AuthContext';
+import { supabase } from '@/lib/supabase';
+import { buildOrderPdfBase64 } from '@/lib/orderPdf';
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
   entwurf: 'Entwurf',
@@ -59,6 +61,31 @@ export function DispoOrderPrintPage() {
 
   const printDate = new Date().toLocaleString('de-DE');
 
+  // E-Mail-Versand an die ausführende Firma
+  const [mailState, setMailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [mailMsg, setMailMsg] = useState<string>('');
+  async function handleSendMail() {
+    if (!order) return;
+    setMailState('sending'); setMailMsg('');
+    try {
+      const pdfBase64 = buildOrderPdfBase64(order);
+      const { data, error } = await supabase.functions.invoke('send-order-email', {
+        body: { orderId: order.id, pdfBase64, pdfFilename: `Auftrag_${order.code}.pdf` },
+      });
+      if (error) {
+        // Edge Function liefert Fehlerdetails im Body
+        let detail = error.message;
+        try { const ctx = await (error as { context?: Response }).context?.json(); if (ctx?.error) detail = ctx.error; } catch { /* ignore */ }
+        throw new Error(detail);
+      }
+      setMailState('sent');
+      setMailMsg(`Gesendet an ${(data as { recipient?: string })?.recipient ?? order.assigned_company_email ?? 'die Firma'}.`);
+    } catch (e) {
+      setMailState('error');
+      setMailMsg((e as Error).message);
+    }
+  }
+
   return (
     <>
       <style>{`
@@ -108,8 +135,25 @@ export function DispoOrderPrintPage() {
           >
             <FileDown className="h-3.5 w-3.5" /> Als PDF
           </button>
+          <button
+            onClick={handleSendMail}
+            disabled={!order || mailState === 'sending'}
+            className="flex items-center gap-1.5 rounded bg-emerald-600 px-3 py-1.5 text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            title={order?.assigned_company_email ? `An ${order.assigned_company_email}` : 'Keine Firmen-E-Mail hinterlegt'}
+          >
+            {mailState === 'sending' ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : mailState === 'sent' ? <CheckCircle2 className="h-3.5 w-3.5" />
+              : <Mail className="h-3.5 w-3.5" />}
+            Per Mail senden
+          </button>
         </div>
       </div>
+
+      {mailState !== 'idle' && mailState !== 'sending' && (
+        <div className={`no-print px-4 py-2 text-sm ${mailState === 'sent' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+          {mailMsg}
+        </div>
+      )}
 
       {isLoading && <div className="p-8 text-center text-sm text-muted-foreground">Lade Auftrag …</div>}
       {error && (

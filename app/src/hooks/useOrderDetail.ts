@@ -48,6 +48,7 @@ export interface OrderDetail {
   assigned_company_id: string;
   assigned_company_name: string | null;
   assigned_company_type: 'internal_bauhof' | 'external_company' | null;
+  assigned_company_email: string | null;
   created_at: string;
   sent_at: string | null;
   accepted_at: string | null;
@@ -67,7 +68,7 @@ export function useOrderDetail(id: string | undefined) {
         .select(
           `
           *,
-          assigned_company:companies!assigned_company_id ( name, type )
+          assigned_company:companies!assigned_company_id ( name, type, contact_email )
         `,
         )
         .eq('id', id!)
@@ -87,7 +88,7 @@ export function useOrderDetail(id: string | undefined) {
         accepted_at: string | null;
         fertiggemeldet_at: string | null;
         completed_at: string | null;
-        assigned_company: { name: string; type: 'internal_bauhof' | 'external_company' } | null;
+        assigned_company: { name: string; type: 'internal_bauhof' | 'external_company'; contact_email: string | null } | null;
       };
 
       // Positionen mit Damage-Daten
@@ -219,6 +220,7 @@ export function useOrderDetail(id: string | undefined) {
         assigned_company_id: order.assigned_company_id,
         assigned_company_name: order.assigned_company?.name ?? null,
         assigned_company_type: order.assigned_company?.type ?? null,
+        assigned_company_email: order.assigned_company?.contact_email ?? null,
         created_at: order.created_at,
         sent_at: order.sent_at,
         accepted_at: order.accepted_at,

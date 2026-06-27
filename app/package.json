@@ -35,6 +35,8 @@
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
     "fflate": "^0.8.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.460.0",
     "maplibre-gl": "^4.7.1",
