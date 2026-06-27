@@ -12,6 +12,8 @@ export interface NetworkObjectType {
   description: string | null;
   property_schema: PropertyFieldDef[];
   sort_order: number;
+  /** Kontrollintervall in Tagen (null/0 = keine Kontrollpflicht) */
+  interval_days: number | null;
   created_at: string;
 }
 
@@ -23,7 +25,7 @@ export interface ObjectTypeNode extends NetworkObjectType {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = () => (supabase as any).from('network_object_types');
 
-const SELECT = 'id, parent_id, name, geometry_type, color, description, property_schema, sort_order, created_at';
+const SELECT = 'id, parent_id, name, geometry_type, color, description, property_schema, sort_order, interval_days, created_at';
 
 export function useNetworkObjectTypes() {
   const { profile } = useAuth();

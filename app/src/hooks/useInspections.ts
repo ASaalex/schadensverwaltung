@@ -122,6 +122,45 @@ export function useSegmentStatus() {
   });
 }
 
+/** Fälligkeits-Status je Objekt (analog zu useSegmentStatus) */
+export function useObjectStatus() {
+  const { profile } = useAuth();
+  return useQuery({
+    queryKey: ['object-status', profile?.company_id],
+    queryFn: async (): Promise<Record<string, SegmentStatus>> => {
+      const { data, error } = await tbl('object_inspection_status')
+        .select('id, status, last_at, due_at, days_until_due')
+        .eq('company_id', profile!.company_id);
+      if (error) throw error;
+      const map: Record<string, SegmentStatus> = {};
+      (data ?? []).forEach((r: SegmentStatus) => { map[r.id] = r; });
+      return map;
+    },
+    enabled: !!profile?.company_id,
+    staleTime: 60_000,
+  });
+}
+
+/** Begehungs-Historie eines Objekts (wann/von wem) */
+export function useObjectInspections(objectId: string | null) {
+  return useQuery({
+    queryKey: ['object-inspections', objectId],
+    enabled: !!objectId,
+    queryFn: async (): Promise<SegmentInspection[]> => {
+      const { data, error } = await tbl('object_inspections')
+        .select('id, inspected_at, inspector:users!inspected_by ( full_name )')
+        .eq('object_id', objectId!)
+        .order('inspected_at', { ascending: false });
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id, inspected_at: r.inspected_at, coverage_pct: null,
+        inspector_name: r.inspector?.full_name ?? null,
+      }));
+    },
+  });
+}
+
 /** Begehungs-Historie eines Abschnitts (wann/von wem) */
 export function useSegmentInspections(segmentId: string | null) {
   return useQuery({

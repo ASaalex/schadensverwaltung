@@ -37,11 +37,17 @@ export function ErfasserInspectionWalkPage() {
     try {
       const geojson = { type: 'LineString', coordinates: t };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc('mark_track_inspected', { track: geojson, dedup_minutes: 720 });
-      if (!error && (data as number) > 0) {
-        totalRef.current += data as number;
+      const sb = supabase as any;
+      const [seg, obj] = await Promise.all([
+        sb.rpc('mark_track_inspected', { track: geojson, dedup_minutes: 720 }),
+        sb.rpc('mark_track_objects_inspected', { track: geojson, dedup_minutes: 720 }),
+      ]);
+      const added = (!seg.error ? (seg.data as number) : 0) + (!obj.error ? (obj.data as number) : 0);
+      if (added > 0) {
+        totalRef.current += added;
         setLiveCount(totalRef.current);
         qc.invalidateQueries({ queryKey: ['segment-status'] });
+        qc.invalidateQueries({ queryKey: ['object-status'] });
       }
     } finally {
       markingRef.current = false;
@@ -65,11 +71,17 @@ export function ErfasserInspectionWalkPage() {
       const geojson = { type: 'LineString', coordinates: track };
       // Abschluss-Auswertung – dedup verhindert Doppelung der live markierten
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc('mark_track_inspected', { track: geojson, dedup_minutes: 720 });
-      if (error) throw new Error(error.message);
-      totalRef.current += (data as number) ?? 0;
+      const sb = supabase as any;
+      const [seg, obj] = await Promise.all([
+        sb.rpc('mark_track_inspected', { track: geojson, dedup_minutes: 720 }),
+        sb.rpc('mark_track_objects_inspected', { track: geojson, dedup_minutes: 720 }),
+      ]);
+      if (seg.error) throw new Error(seg.error.message);
+      if (obj.error) throw new Error(obj.error.message);
+      totalRef.current += ((seg.data as number) ?? 0) + ((obj.data as number) ?? 0);
       setResult({ count: totalRef.current });
       qc.invalidateQueries({ queryKey: ['segment-status'] });
+      qc.invalidateQueries({ queryKey: ['object-status'] });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -111,7 +123,7 @@ export function ErfasserInspectionWalkPage() {
         {result && (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
-            {result.count > 0 ? `${result.count} Abschnitt(e) als kontrolliert markiert.` : 'Kein Abschnitt ausreichend (≥ 50 %) begangen.'}
+            {result.count > 0 ? `${result.count} Abschnitt(e)/Objekt(e) als kontrolliert markiert.` : 'Nichts ausreichend begangen.'}
           </div>
         )}
 

@@ -262,12 +262,6 @@ export function DispoOrderDetailPage() {
             </div>
           )}
 
-          {/* Chats finden pro Schaden statt — siehe Schadendetail */}
-          <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-            💬 Die Kommunikation mit der Firma erfolgt jetzt pro Schaden. Öffne einen Schaden aus
-            der Positions-Liste unten, um den Chat zu sehen oder eine Nachricht zu schreiben.
-          </div>
-
           {/* Positionen */}
           <div className="overflow-hidden rounded-xl border bg-white">
             <div className="flex items-center justify-between border-b px-4 py-3">

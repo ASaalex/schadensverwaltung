@@ -88,6 +88,7 @@ export function AdminNetworkPage() {
   const emptyObjTypeForm = {
     id: '', parent_id: null as string | null, name: '', geometry_type: 'point',
     color: '#6366f1', description: '', property_schema: [] as PropertyFieldDef[],
+    interval_days: '' as string,
   };
   const [objTypeForm, setObjTypeForm] = useState(emptyObjTypeForm);
   const [objTypeModalOpen, setObjTypeModalOpen] = useState(false);
@@ -791,7 +792,7 @@ export function AdminNetworkPage() {
                               className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600">
                               <Plus className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => { setObjTypeForm({ id: n.id, parent_id: n.parent_id, name: n.name, geometry_type: n.geometry_type, color: n.color, description: n.description ?? '', property_schema: n.property_schema }); setObjTypeModalOpen(true); }}
+                            <button onClick={() => { setObjTypeForm({ id: n.id, parent_id: n.parent_id, name: n.name, geometry_type: n.geometry_type, color: n.color, description: n.description ?? '', property_schema: n.property_schema, interval_days: n.interval_days != null ? String(n.interval_days) : '' }); setObjTypeModalOpen(true); }}
                               className="rounded p-1 text-slate-400 hover:bg-slate-100">
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
@@ -1036,6 +1037,43 @@ export function AdminNetworkPage() {
                   placeholder="Kurzbeschreibung"
                   className="w-full rounded-lg border px-3 py-2 text-sm" />
               </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Kontrollintervall</label>
+                <select value={objTypeForm.interval_days}
+                  onChange={(e) => setObjTypeForm((f) => ({ ...f, interval_days: e.target.value }))}
+                  className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="">Keine Kontrolle</option>
+                  <option value="14">2 Wochen</option>
+                  <option value="28">4 Wochen</option>
+                  <option value="56">8 Wochen</option>
+                  <option value="90">Vierteljährlich (90 T.)</option>
+                  <option value="182">Halbjährlich (182 T.)</option>
+                  <option value="365">Jährlich (365 T.)</option>
+                  <option value="730">Alle 2 Jahre</option>
+                </select>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Objekte dieses Typs werden im Kontrollgang erkannt und nach Fälligkeit eingefärbt.
+                </p>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-700">Kontrollintervall</label>
+                <select value={objTypeForm.interval_days}
+                  onChange={(e) => setObjTypeForm((f) => ({ ...f, interval_days: e.target.value }))}
+                  className="w-full rounded-lg border px-3 py-2 text-sm">
+                  <option value="">Keine Kontrolle</option>
+                  <option value="14">2 Wochen</option>
+                  <option value="28">4 Wochen</option>
+                  <option value="56">8 Wochen</option>
+                  <option value="90">Vierteljährlich (90 T.)</option>
+                  <option value="182">Halbjährlich (182 T.)</option>
+                  <option value="365">Jährlich (365 T.)</option>
+                  <option value="730">Alle 2 Jahre</option>
+                </select>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Objekte dieses Typs werden im Kontrollgang erkannt und im Fälligkeits-Layer
+                  wie Straßenabschnitte eingefärbt.
+                </p>
+              </div>
 
               {/* Merkmale */}
               <div className="border-t pt-3">
@@ -1054,7 +1092,7 @@ export function AdminNetworkPage() {
               <button onClick={() => setObjTypeModalOpen(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-slate-50">Abbrechen</button>
               <button
                 onClick={() => objTypeSave.mutate(
-                  { id: objTypeForm.id || undefined, parent_id: objTypeForm.parent_id, name: objTypeForm.name, geometry_type: objTypeForm.geometry_type as 'point' | 'line' | 'polygon', color: objTypeForm.color, description: objTypeForm.description || null, property_schema: objTypeForm.property_schema },
+                  { id: objTypeForm.id || undefined, parent_id: objTypeForm.parent_id, name: objTypeForm.name, geometry_type: objTypeForm.geometry_type as 'point' | 'line' | 'polygon', color: objTypeForm.color, description: objTypeForm.description || null, property_schema: objTypeForm.property_schema, interval_days: objTypeForm.interval_days ? Number(objTypeForm.interval_days) : null },
                   { onSuccess: () => setObjTypeModalOpen(false) }
                 )}
                 disabled={!objTypeForm.name.trim() || objTypeSave.isPending}

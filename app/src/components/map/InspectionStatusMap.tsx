@@ -8,13 +8,14 @@
  * Klick auf einen Abschnitt → Historie (wann/von wem).
  */
 import { useEffect, useState } from 'react';
-import { MapContainer, Polyline, Tooltip, CircleMarker, useMap } from 'react-leaflet';
+import { MapContainer, Polyline, Polygon, Tooltip, CircleMarker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { X, History, Loader2 } from 'lucide-react';
 import { MapLayerSwitcher } from './MapLayerSwitcher';
 import { useMapLayers } from '@/hooks/useMapLayers';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
-import { useSegmentStatus, useSegmentInspections } from '@/hooks/useInspections';
+import { useNetworkObjects } from '@/hooks/useNetworkObjects';
+import { useSegmentStatus, useSegmentInspections, useObjectStatus, useObjectInspections } from '@/hooks/useInspections';
 
 const STATUS_COLOR: Record<string, string> = {
   red: '#ef4444', yellow: '#f59e0b', green: '#10b981', none: '#94a3b8',
@@ -48,7 +49,16 @@ export function InspectionStatusMap({ track, current }: Props = {}) {
   const { data: layers } = useMapLayers();
   const { data: segments = [] } = useNetworkSegments();
   const { data: statusMap = {} } = useSegmentStatus();
+  const { query: objectsQ } = useNetworkObjects();
+  const objects = objectsQ.data ?? [];
+  const { data: objStatusMap = {} } = useObjectStatus();
   const [historySeg, setHistorySeg] = useState<{ id: string; name: string } | null>(null);
+  const [historyObj, setHistoryObj] = useState<{ id: string; name: string } | null>(null);
+
+  // Objekte mit Kontrollpflicht (Status != 'none') nach Fälligkeit einfärben
+  const dueObjects = objects
+    .map((o) => ({ o, st: objStatusMap[o.id] }))
+    .filter((x) => x.st && x.st.status !== 'none');
 
   const allPts: [number, number][] = [];
   const lines = segments
@@ -110,6 +120,49 @@ export function InspectionStatusMap({ track, current }: Props = {}) {
             </Tooltip>
           </Polyline>
         ))}
+
+        {/* Objekte mit Kontrollpflicht – nach Fälligkeit eingefärbt */}
+        {dueObjects.map(({ o, st }) => {
+          const color = STATUS_COLOR[st!.status] ?? '#94a3b8';
+          const name = o.name || o.identifier || o.type_name || 'Objekt';
+          const days = st!.days_until_due;
+          const tip = (
+            <Tooltip sticky>
+              <div className="text-xs">
+                <b>{name}</b>
+                {days != null
+                  ? <div>{days < 0 ? `überfällig seit ${Math.abs(days)} Tag(en)` : `in ${days} Tag(en) fällig`}</div>
+                  : <div>noch nie kontrolliert</div>}
+                <div className="mt-0.5 text-slate-400">Klick → Historie</div>
+              </div>
+            </Tooltip>
+          );
+          const onClick = () => setHistoryObj({ id: o.id, name });
+          const g = o.geometry;
+          if (g.type === 'Point') {
+            const [lng, lat] = g.coordinates as number[];
+            return (
+              <CircleMarker key={o.id} center={[lat, lng]} radius={8}
+                pathOptions={{ color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.95 }}
+                eventHandlers={{ click: onClick }}>{tip}</CircleMarker>
+            );
+          }
+          if (g.type === 'LineString') {
+            const positions = (g.coordinates as number[][]).map(([lng, lat]) => [lat, lng] as [number, number]);
+            return (
+              <Polyline key={o.id} positions={positions}
+                pathOptions={{ color, weight: 5, opacity: 0.9 }}
+                eventHandlers={{ click: onClick }}>{tip}</Polyline>
+            );
+          }
+          const ring = (g.coordinates as number[][][])[0] ?? [];
+          const positions = ring.map(([lng, lat]) => [lat, lng] as [number, number]);
+          return (
+            <Polygon key={o.id} positions={positions}
+              pathOptions={{ color, weight: 2, fillColor: color, fillOpacity: 0.3 }}
+              eventHandlers={{ click: onClick }}>{tip}</Polygon>
+          );
+        })}
       </MapContainer>
 
       {/* Legende */}
@@ -126,6 +179,42 @@ export function InspectionStatusMap({ track, current }: Props = {}) {
       {historySeg && (
         <HistoryModal segId={historySeg.id} name={historySeg.name} onClose={() => setHistorySeg(null)} />
       )}
+      {historyObj && (
+        <ObjectHistoryModal objId={historyObj.id} name={historyObj.name} onClose={() => setHistoryObj(null)} />
+      )}
+    </div>
+  );
+}
+
+function ObjectHistoryModal({ objId, name, onClose }: { objId: string; name: string; onClose: () => void }) {
+  const { data: inspections = [], isLoading } = useObjectInspections(objId);
+  return (
+    <div className="absolute inset-0 z-[1100] flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2 font-medium">
+            <History className="h-4 w-4 text-blue-500" /> Kontroll-Historie
+          </div>
+          <button onClick={onClose}><X className="h-5 w-5 text-slate-400" /></button>
+        </div>
+        <div className="px-4 py-2 text-xs text-muted-foreground">{name}</div>
+        <div className="max-h-72 overflow-y-auto px-4 pb-4">
+          {isLoading && <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lade …</div>}
+          {!isLoading && inspections.length === 0 && (
+            <div className="py-4 text-center text-sm text-muted-foreground">Noch keine Kontrolle erfasst.</div>
+          )}
+          <ul className="divide-y">
+            {inspections.map((i) => (
+              <li key={i.id} className="flex items-center justify-between py-2 text-sm">
+                <div>
+                  <div className="font-medium">{new Date(i.inspected_at).toLocaleString('de-DE')}</div>
+                  <div className="text-xs text-muted-foreground">{i.inspector_name ?? 'Unbekannt'}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 }
