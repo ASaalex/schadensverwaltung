@@ -61,7 +61,10 @@ export function useNetworkObjects() {
     enabled: !!profile?.company_id,
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['network-objects', profile?.company_id] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['network-objects', profile?.company_id] });
+    qc.invalidateQueries({ queryKey: ['object-status'] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async (o: Partial<NetworkObject> & { object_type_id: string; geometry: NetworkObject['geometry'] }) => {

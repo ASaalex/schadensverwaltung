@@ -48,7 +48,11 @@ export function useNetworkObjectTypes() {
     enabled: !!profile?.company_id,
   });
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['network-object-types', profile?.company_id] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['network-object-types', profile?.company_id] });
+    // Intervall-Änderung wirkt sich auf die Fälligkeit der Objekte aus
+    qc.invalidateQueries({ queryKey: ['object-status'] });
+  };
 
   const saveMut = useMutation({
     mutationFn: async (t: Partial<NetworkObjectType> & { name: string; geometry_type: string }) => {
