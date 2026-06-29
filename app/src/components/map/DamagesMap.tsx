@@ -8,6 +8,7 @@ import { NetworkLayer } from './NetworkLayer';
 import { NetworkAreaLayer } from './NetworkAreaLayer';
 import { NetworkObjectViewportLayer } from './NetworkObjectViewportLayer';
 import { NetworkDueLayer } from './NetworkDueLayer';
+import { ObjectDueLayer } from './ObjectDueLayer';
 import { useNetworkSegments } from '@/hooks/useNetworkSegments';
 import type { DamageListItem } from '@/hooks/useDamageList';
 import type { MapLayer } from '@/types/database';
@@ -166,6 +167,7 @@ export function DamagesMap({
         {allow.network && showNetwork && <NetworkLayer segments={segments} />}
         {allow.network && showNetwork && <NetworkAreaLayer />}
         {allow.due && showDue && <NetworkDueLayer segments={segments} />}
+        {allow.due && showDue && <ObjectDueLayer />}
         {allow.objects && showObjects && <NetworkObjectViewportLayer />}
 
         <MarkerClusterGroup

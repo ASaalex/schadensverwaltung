@@ -6,13 +6,19 @@ import { DISPO_SIDEBAR } from './sidebar';
 import { useNetworkObject } from '@/hooks/useNetworkObjects';
 import { useNetworkObjectTypes } from '@/hooks/useNetworkObjectTypes';
 import { useObjectDocuments, isImage, type ObjectDocument } from '@/hooks/useObjectDocuments';
+import { useObjectInspections, useObjectStatus } from '@/hooks/useInspections';
 import { ObjectsMap } from '@/components/map/ObjectsMap';
 import { supabase } from '@/lib/supabase';
 import { lineLength, formatLength, polygonArea, formatArea } from '@/lib/geoMeasure';
 import {
   ArrowLeft, Box, AlertTriangle, Printer, Upload, FileText,
-  Trash2, Download, Loader2, MapPin, Minus, Hexagon, Camera, ImageIcon,
+  Trash2, Download, Loader2, MapPin, Minus, Hexagon, Camera, ImageIcon, CheckCircle2,
 } from 'lucide-react';
+
+const DUE_BADGE: Record<string, string> = {
+  red: 'bg-red-100 text-red-700', yellow: 'bg-amber-100 text-amber-700',
+  green: 'bg-emerald-100 text-emerald-700', none: 'bg-slate-100 text-slate-500',
+};
 
 const GEOM_ICON = { point: MapPin, line: Minus, polygon: Hexagon } as const;
 const GEOM_LABEL: Record<string, string> = { point: 'Punkt', line: 'Linie', polygon: 'Fläche' };
@@ -41,6 +47,11 @@ export function DispoObjectDetailPage() {
   const { query: typeQ } = useNetworkObjectTypes();
   const obj = objQ.data ?? undefined;
   const type = typeQ.data?.find((t) => t.id === obj?.object_type_id);
+
+  // Kontroll-Historie + Fälligkeit dieses Objekts
+  const { data: inspections = [], isLoading: inspLoading } = useObjectInspections(id ?? null);
+  const { data: objStatusMap = {} } = useObjectStatus();
+  const objStatus = obj ? objStatusMap[obj.id] : undefined;
 
   const { query: docsQ, uploadMut, deleteMut, getUrl } = useObjectDocuments(id);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -210,6 +221,42 @@ export function DispoObjectDetailPage() {
               </div>
               <div className="text-xs text-muted-foreground flex-shrink-0">{new Date(d.created_at).toLocaleDateString('de-DE')}</div>
             </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Kontroll-Historie */}
+      <div className="mt-4 rounded-xl border bg-white">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="h-4 w-4 text-blue-500" />
+            Kontroll-Historie ({inspections.length})
+          </div>
+          {objStatus && objStatus.status !== 'none' && (
+            <span className={`rounded-full px-2 py-0.5 text-xs ${DUE_BADGE[objStatus.status]}`}>
+              {objStatus.days_until_due == null ? 'nie kontrolliert'
+                : objStatus.days_until_due < 0 ? `überfällig (${Math.abs(objStatus.days_until_due)} T.)`
+                : `nächste Kontrolle in ${objStatus.days_until_due} T.`}
+            </span>
+          )}
+        </div>
+        {inspLoading && <div className="px-4 py-6 text-center text-sm text-muted-foreground">Lade …</div>}
+        {!inspLoading && inspections.length === 0 && (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+            {type?.interval_days
+              ? 'Noch keine Kontrolle erfasst. Objekte dieses Typs werden im Kontrollgang automatisch erkannt.'
+              : 'Für diesen Objekt-Typ ist kein Kontrollintervall hinterlegt.'}
+          </div>
+        )}
+        <div className="divide-y">
+          {inspections.map((i) => (
+            <div key={i.id} className="flex items-center justify-between px-4 py-2.5">
+              <div className="flex items-center gap-2 text-sm">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <span className="font-medium">{new Date(i.inspected_at).toLocaleString('de-DE')}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">{i.inspector_name ?? 'Unbekannt'}</span>
+            </div>
           ))}
         </div>
       </div>
