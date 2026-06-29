@@ -12,6 +12,8 @@ interface AuthState {
   loading: boolean;
   /** Wartet zusätzlich auf Profil-Load aus DB/Cache — kurz nach loading=false */
   profileLoading: boolean;
+  /** true, sobald der erste Profil-Ladeversuch abgeschlossen ist */
+  profileResolved: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -24,6 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile,        setProfile]        = useState<UserProfile | null>(null);
   const [loading,        setLoading]        = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  // true, sobald ein Profil-Ladeversuch abgeschlossen ist (Erfolg ODER kein
+  // Profil). Verhindert das kurze Aufblitzen des "Keine-Rolle"-Screens, bevor
+  // das Profil überhaupt geladen wurde.
+  const [profileResolved, setProfileResolved] = useState(false);
 
   async function loadProfile(userId: string) {
     setProfileLoading(true);
@@ -53,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } finally {
       setProfileLoading(false);
+      setProfileResolved(true);
     }
   }
 
@@ -67,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('[Auth] Timeout 5s — Loading wird beendet');
         setLoading(false);
         setProfileLoading(false);
+        setProfileResolved(true);
       }
     }, 5000);
 
@@ -90,6 +98,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Profil nur neu laden wenn User-ID sich wirklich ändert
         if (sess.user.id !== lastLoadedUserId) {
           lastLoadedUserId = sess.user.id;
+          // Neuer Nutzer → Profil gilt als "noch nicht aufgelöst", damit der
+          // Keine-Rolle-Screen erst nach dem Laden erscheinen kann
+          setProfileResolved(false);
           // Fire-and-forget: blockiert Loading NICHT mehr
           loadProfile(sess.user.id).catch(() => {/* bereits in loadProfile behandelt */});
         }
@@ -97,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastLoadedUserId = null;
         setProfile(null);
         setProfileLoading(false);
+        setProfileResolved(false);
       }
     });
 
@@ -115,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     loading,
     profileLoading,
+    profileResolved,
     async signIn(email, password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return { error: error?.message ?? null };

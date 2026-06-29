@@ -12,13 +12,16 @@ interface Props {
 }
 
 export function ProtectedRoute({ children, allow }: Props) {
-  const { session, profile, loading, profileLoading } = useAuth();
+  const { session, profile, loading, profileLoading, profileResolved } = useAuth();
   const location = useLocation();
 
   // loading = warte auf INITIAL_SESSION (sollte < 1s dauern)
   // profileLoading = Profil wird noch aus DB/Cache geladen
   if (loading || profileLoading) return <LoadingSessionScreen />;
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />;
+  // Profil-Ladeversuch noch nicht abgeschlossen → weiter laden statt kurz den
+  // "Keine-Rolle"-Screen aufblitzen zu lassen.
+  if (!profile && !profileResolved) return <LoadingSessionScreen />;
   if (!profile) return <NoProfileScreen />;
 
   // Wenn die Rolle nicht für diesen Bereich erlaubt ist, leite zur Startseite

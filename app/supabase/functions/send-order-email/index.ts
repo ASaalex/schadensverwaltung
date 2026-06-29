@@ -4,13 +4,24 @@
 //  Versendet eine HTML-Zusammenfassung des Auftrags (optional mit PDF-Anhang,
 //  vom Client erzeugt) per Resend an die Kontakt-E-Mail der zugewiesenen Firma.
 //
-//  Benötigte Secrets (supabase secrets set ...):
-//    RESEND_API_KEY  – API-Key von resend.com
-//    MAIL_FROM       – verifizierter Absender, z. B. "Bauhof <auftrag@example.de>"
+//  Anbieter wählbar über MAIL_PROVIDER ("gmail" | "resend").
+//
+//  Gmail (SMTP, empfohlen für eigenes Konto):
+//    MAIL_PROVIDER=gmail
+//    GMAIL_USER=deinkonto@gmail.com
+//    GMAIL_APP_PASSWORD=xxxxxxxxxxxxxxxx   (App-Passwort, NICHT das normale!)
+//    MAIL_FROM optional (Default: GMAIL_USER)
+//
+//  Resend (API):
+//    MAIL_PROVIDER=resend
+//    RESEND_API_KEY=re_...
+//    MAIL_FROM="Bauhof <auftrag@example.de>"  (verifizierte Domain)
+//
 //  SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY werden von Supabase automatisch
 //  bereitgestellt.
 // =============================================================================
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -39,9 +50,17 @@ Deno.serve(async (req) => {
     if (!orderId) return json({ error: 'orderId fehlt' }, 400);
 
     const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
-    const MAIL_FROM = Deno.env.get('MAIL_FROM');
-    if (!RESEND_API_KEY || !MAIL_FROM) {
-      return json({ error: 'Serverkonfiguration fehlt (RESEND_API_KEY / MAIL_FROM).' }, 500);
+    const GMAIL_USER = Deno.env.get('GMAIL_USER');
+    const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD');
+    // Anbieter automatisch bestimmen, falls MAIL_PROVIDER nicht gesetzt
+    const provider = (Deno.env.get('MAIL_PROVIDER') || (GMAIL_USER ? 'gmail' : 'resend')).toLowerCase();
+    const MAIL_FROM = Deno.env.get('MAIL_FROM') || (provider === 'gmail' ? GMAIL_USER : undefined);
+
+    if (provider === 'gmail' && (!GMAIL_USER || !GMAIL_APP_PASSWORD)) {
+      return json({ error: 'Gmail-Konfiguration fehlt (GMAIL_USER / GMAIL_APP_PASSWORD).' }, 500);
+    }
+    if (provider === 'resend' && (!RESEND_API_KEY || !MAIL_FROM)) {
+      return json({ error: 'Resend-Konfiguration fehlt (RESEND_API_KEY / MAIL_FROM).' }, 500);
     }
 
     const supabase = createClient(
@@ -114,20 +133,42 @@ Deno.serve(async (req) => {
       </p>
     </div>`;
 
-    // deno-lint-ignore no-explicit-any
-    const payload: Record<string, any> = {
-      from: MAIL_FROM,
-      to: [recipient],
-      subject: `Arbeitsauftrag ${order.code} – ${order.title}`,
-      html,
-    };
-    if (pdfBase64) {
-      payload.attachments = [{
-        filename: pdfFilename || `Auftrag_${order.code}.pdf`,
-        content: pdfBase64,
-      }];
+    const subject = `Arbeitsauftrag ${order.code} – ${order.title}`;
+    const attachName = pdfFilename || `Auftrag_${order.code}.pdf`;
+
+    if (provider === 'gmail') {
+      // Versand über Gmail SMTP (App-Passwort)
+      const client = new SMTPClient({
+        connection: {
+          hostname: 'smtp.gmail.com',
+          port: 465,
+          tls: true,
+          auth: { username: GMAIL_USER!, password: GMAIL_APP_PASSWORD! },
+        },
+      });
+      try {
+        await client.send({
+          from: MAIL_FROM!,
+          to: recipient,
+          subject,
+          html,
+          content: 'Dieser Auftrag wird in HTML angezeigt.',
+          attachments: pdfBase64
+            ? [{ filename: attachName, encoding: 'base64', content: pdfBase64, contentType: 'application/pdf' }]
+            : undefined,
+        });
+      } finally {
+        await client.close();
+      }
+      return json({ ok: true, recipient, provider });
     }
 
+    // Versand über Resend (API)
+    // deno-lint-ignore no-explicit-any
+    const payload: Record<string, any> = { from: MAIL_FROM, to: [recipient], subject, html };
+    if (pdfBase64) {
+      payload.attachments = [{ filename: attachName, content: pdfBase64 }];
+    }
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -137,7 +178,7 @@ Deno.serve(async (req) => {
       const txt = await res.text();
       return json({ error: 'Mailversand fehlgeschlagen: ' + txt }, 502);
     }
-    return json({ ok: true, recipient });
+    return json({ ok: true, recipient, provider });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
