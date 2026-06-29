@@ -77,6 +77,15 @@ export function InspectionStatusMap({ track, current }: Props = {}) {
       };
     });
 
+  // Objekt-Koordinaten ebenfalls in die Auto-Zoom-Grenzen aufnehmen, damit
+  // kontrollpflichtige Objekte auch ohne Abschnitte sichtbar sind.
+  for (const { o } of dueObjects) {
+    const g = o.geometry;
+    if (g.type === 'Point') { const [lng, lat] = g.coordinates as number[]; allPts.push([lat, lng]); }
+    else if (g.type === 'LineString') { for (const [lng, lat] of g.coordinates as number[][]) allPts.push([lat, lng]); }
+    else { for (const [lng, lat] of ((g.coordinates as number[][][])[0] ?? [])) allPts.push([lat, lng]); }
+  }
+
   const trackLatLng: [number, number][] = (track ?? []).map(([lng, lat]) => [lat, lng]);
   const center: [number, number] = current ?? allPts[0] ?? [50.9787, 11.0328];
   const isWalk = !!track || !!current;

@@ -1052,24 +1052,6 @@ export function AdminNetworkPage() {
                   <option value="730">Alle 2 Jahre</option>
                 </select>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Objekte dieses Typs werden im Kontrollgang erkannt und nach Fälligkeit eingefärbt.
-                </p>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700">Kontrollintervall</label>
-                <select value={objTypeForm.interval_days}
-                  onChange={(e) => setObjTypeForm((f) => ({ ...f, interval_days: e.target.value }))}
-                  className="w-full rounded-lg border px-3 py-2 text-sm">
-                  <option value="">Keine Kontrolle</option>
-                  <option value="14">2 Wochen</option>
-                  <option value="28">4 Wochen</option>
-                  <option value="56">8 Wochen</option>
-                  <option value="90">Vierteljährlich (90 T.)</option>
-                  <option value="182">Halbjährlich (182 T.)</option>
-                  <option value="365">Jährlich (365 T.)</option>
-                  <option value="730">Alle 2 Jahre</option>
-                </select>
-                <p className="mt-1 text-[11px] text-muted-foreground">
                   Objekte dieses Typs werden im Kontrollgang erkannt und im Fälligkeits-Layer
                   wie Straßenabschnitte eingefärbt.
                 </p>
